@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.agenttradr.Contributor</id>
+  <name>AgentTradr Contributor</name>
+  <summary>Earn money with your computer as you sleep</summary>
+  <description>
+    <p>
+      AgentTradr Contributor allows you to earn passive income by contributing your computer's 
+      processing power and AI account access to help train our advanced trading algorithms.
+    </p>
+    <p>
+      Features:
+    </p>
+    <ul>
+      <li>Earn 40-50% revenue share from AI trading signal subscriptions</li>
+      <li>Get instant access to premium trading signals worth $300+/month</li>
+      <li>Tier-based progression system with permanent rank maintenance</li>
+      <li>Idle credits earned just for keeping the program running</li>
+      <li>Complete transparency about current development phases</li>
+      <li>Multiple device support to maximize earnings</li>
+    </ul>
+  </description>
+  <categories>
+    <category>Development</category>
+    <category>Network</category>
+    <category>Office</category>
+  </categories>
+  <keywords>
+    <keyword>agenttradr</keyword>
+    <keyword>contributor</keyword>
+    <keyword>ai</keyword>
+    <keyword>trading</keyword>
+    <keyword>passive income</keyword>
+    <keyword>signals</keyword>
+  </keywords>
+  <url type="homepage">https://agenttradr.com</url>
+  <url type="bugtracker">https://github.com/agenttradr/agenttradr-contributor/issues</url>
+  <url type="help">https://agenttradr.com/support</url>
+  <url type="donation">https://agenttradr.com/contribute</url>
+  <launchable type="desktop-id">com.agenttradr.Contributor.desktop</launchable>
+  <provides>
+    <binary>agenttradr-contributor</binary>
+  </provides>
+  <releases>
+    <release version="1.0.0" date="2024-12-01">
+      <description>
+        <p>Initial release of AgentTradr Contributor</p>
+        <ul>
+          <li>Complete contribution system with tier progression</li>
+          <li>AI account integration for Claude Code users</li>
+          <li>Processing power contribution monitoring</li>
+          <li>Real-time earnings tracking and signal access</li>
+          <li>Phase-based development transparency</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-cartoon">none</content_attribute>
+    <content_attribute id="violence-fantasy">none</content_attribute>
+    <content_attribute id="drugs-alcohol">none</content_attribute>
+    <content_attribute id="drugs-narcotics">none</content_attribute>
+    <content_attribute id="drugs-tobacco">none</content_attribute>
+    <content_attribute id="sex-nudity">none</content_attribute>
+    <content_attribute id="sex-themes">none</content_attribute>
+    <content_attribute id="language-profanity">none</content_attribute>
+    <content_attribute id="language-humor">none</content_attribute>
+    <content_attribute id="language-discrimination">none</content_attribute>
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-info">mild</content_attribute>
+    <content_attribute id="social-audio">none</content_attribute>
+    <content_attribute id="social-location">none</content_attribute>
+    <content_attribute id="social-contacts">none</content_attribute>
+    <content_attribute id="money-purchasing">intense</content_attribute>
+    <content_attribute id="money-gambling">none</content_attribute>
+  </content_rating>
+</component>

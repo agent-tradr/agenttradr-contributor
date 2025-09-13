@@ -1,0 +1,203 @@
+name: Deploy AgentTradr Contributor to All Platforms
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '18'
+  ELECTRON_CACHE: ~/.cache/electron
+  ELECTRON_BUILDER_CACHE: ~/.cache/electron-builder
+
+jobs:
+  # Build and test first
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Run linting
+        run: npm run lint || echo "No lint script found"
+
+  # Build for all platforms
+  build:
+    needs: test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact: '*.AppImage,*.deb,*.rpm,*.tar.gz'
+          - os: windows-latest
+            platform: windows
+            artifact: '*.exe'
+          - os: macos-latest
+            platform: mac
+            artifact: '*.dmg,*.zip'
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build Electron App
+        run: |
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            npm run build:linux -- --publish=never
+            # Build additional formats for Linux
+            npx electron-builder --linux deb --publish=never
+            npx electron-builder --linux rpm --publish=never
+          elif [[ "${{ matrix.platform }}" == "windows" ]]; then
+            npm run build:win -- --publish=never
+          else
+            npm run build:mac -- --publish=never
+          fi
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-builds
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.exe
+            dist/*.dmg
+            dist/*.tar.gz
+            dist/*.zip
+          retention-days: 30
+
+  # Deploy to package repositories (only on main branch)
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Setup deployment files
+        run: |
+          mkdir -p deploy
+          find artifacts -name "*.AppImage" -exec cp {} deploy/ \;
+          find artifacts -name "*.deb" -exec cp {} deploy/ \;
+          find artifacts -name "*.rpm" -exec cp {} deploy/ \;
+          find artifacts -name "*.exe" -exec cp {} deploy/ \;
+          find artifacts -name "*.dmg" -exec cp {} deploy/ \;
+          ls -la deploy/
+
+      # Deploy to GitHub Releases
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: deploy/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Deploy to AUR (Arch Linux)
+      - name: Deploy to AUR
+        if: github.ref == 'refs/heads/main'
+        uses: KSXGitHub/github-actions-deploy-aur@v2.7.0
+        with:
+          pkgname: agenttradr-contributor-bin
+          pkgbuild: .ci/aur/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update AgentTradr Contributor to ${{ github.sha }}"
+          ssh_keyscan: true
+
+      # Deploy to Snap Store
+      - name: Deploy to Snap Store
+        if: github.ref == 'refs/heads/main'
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAP_STORE_CREDENTIALS }}
+        with:
+          snap: deploy/*.snap
+          release: stable
+
+      # Deploy to Flathub (requires manual setup)
+      - name: Trigger Flathub Update
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Creating Flathub update PR..."
+          # This will trigger a webhook or create a PR to flathub repo
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.FLATHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/flathub/com.agenttradr.Contributor/dispatches \
+            -d '{"event_type":"update","client_payload":{"version":"'$(date +%Y%m%d)'-'${GITHUB_SHA:0:7}'"}}'
+
+  # Update frontend download links
+  update-frontend:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/agenttradr
+          token: ${{ secrets.FRONTEND_UPDATE_TOKEN }}
+          path: frontend-repo
+      
+      - name: Update frontend URLs
+        run: |
+          cd frontend-repo
+          
+          # Update the JavaScript to point to real repositories
+          sed -i "s|url: '/downloads/agenttradr-contributor-linux.AppImage'|url: 'https://github.com/${{ github.repository }}/releases/latest/download/agenttradr-contributor-linux.AppImage'|g" frontend/index.html
+          
+          # Update AUR link to point to real AUR package
+          sed -i "s|'arch': {[^}]*}|'arch': { url: 'https://aur.archlinux.org/packages/agenttradr-contributor-bin', instructions: 'Install from AUR: yay -S agenttradr-contributor-bin', available: true, external: true }|g" frontend/index.html
+          
+          # Update Snap link
+          sed -i "s|'snap': {[^}]*}|'snap': { url: 'https://snapcraft.io/agenttradr-contributor', instructions: 'Install with: sudo snap install agenttradr-contributor', available: true, external: true }|g" frontend/index.html
+          
+          # Update Flatpak link
+          sed -i "s|'flatpak': {[^}]*}|'flatpak': { url: 'https://flathub.org/apps/details/com.agenttradr.Contributor', instructions: 'Install with: flatpak install flathub com.agenttradr.Contributor', available: true, external: true }|g" frontend/index.html
+      
+      - name: Commit frontend changes
+        run: |
+          cd frontend-repo
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add frontend/index.html
+          git diff --staged --quiet || git commit -m "Auto-update download links to latest release"
+          git push

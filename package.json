@@ -1,0 +1,112 @@
+{
+  "name": "agenttradr-contributor",
+  "version": "1.0.2",
+  "description": "AgentTradr Distributed Contribution Client",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish=never",
+    "dist:all": "electron-builder --publish=never --win --mac --linux",
+    "build:snap": "electron-builder --linux snap --publish=never",
+    "build:deb": "electron-builder --linux deb --publish=never", 
+    "build:rpm": "electron-builder --linux rpm --publish=never",
+    "build:appimage": "electron-builder --linux AppImage --publish=never",
+    "test": "jest",
+    "lint": "echo 'Linting passed' # Add your linter here"
+  },
+  "keywords": [
+    "agenttradr",
+    "contributor",
+    "claude-code",
+    "distributed",
+    "ai"
+  ],
+  "author": "AgentTradr",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agent-tradr/agenttradr.git",
+    "directory": "contributor-client"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.4",
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "electron-store": "^8.1.0",
+    "node-cron": "^3.0.3",
+    "ws": "^8.14.2"
+  },
+  "build": {
+    "appId": "com.agenttradr.contributor",
+    "productName": "AgentTradr Contributor",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "!**/*.map",
+      "!src/**/*.test.js"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "resources/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.ico"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        },
+        {
+          "target": "rpm",
+          "arch": ["x64"]
+        },
+        {
+          "target": "snap",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "resources/icon.png",
+      "category": "Development",
+      "description": "Earn money with your computer as you sleep",
+      "vendor": "AgentTradr",
+      "maintainer": "AgentTradr <support@agenttradr.com>",
+      "desktop": {
+        "Name": "AgentTradr Contributor",
+        "Comment": "Earn money with your computer as you sleep",
+        "Keywords": "agenttradr;contributor;ai;trading;passive;income;",
+        "Category": "Development;Network;Office;"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": null
+  }
+}

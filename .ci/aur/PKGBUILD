@@ -1,0 +1,47 @@
+# Maintainer: AgentTradr <support@agenttradr.com>
+pkgname=agenttradr-contributor-bin
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="AgentTradr Distributed Contribution Client - Earn money with your computer as you sleep"
+arch=('x86_64')
+url="https://github.com/agenttradr/agenttradr-contributor"
+license=('MIT')
+depends=('gtk3' 'nss' 'alsa-lib')
+optdepends=('libappindicator-gtk3: for system tray icon')
+provides=('agenttradr-contributor')
+conflicts=('agenttradr-contributor')
+source=("https://github.com/agenttradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-linux.AppImage")
+sha256sums=('SKIP')  # Will be updated by CI
+
+pkgver() {
+    # Get version from GitHub releases API
+    curl -s https://api.github.com/repos/agenttradr/agenttradr-contributor/releases/latest | \
+    grep -Po '"tag_name": "v\K[^"]*'
+}
+
+package() {
+    # Install the AppImage
+    install -Dm755 "${srcdir}/agenttradr-contributor-linux.AppImage" "${pkgdir}/usr/bin/agenttradr-contributor"
+    
+    # Create desktop entry
+    install -Dm644 <(cat <<EOF
+[Desktop Entry]
+Name=AgentTradr Contributor
+Comment=Earn money with your computer as you sleep
+Exec=/usr/bin/agenttradr-contributor
+Icon=agenttradr-contributor
+Type=Application
+Categories=Development;Network;
+Keywords=agenttradr;contributor;ai;trading;
+StartupWMClass=AgentTradr Contributor
+EOF
+) "${pkgdir}/usr/share/applications/agenttradr-contributor.desktop"
+
+    # Create icon (extract from AppImage if possible)
+    install -Dm644 <(echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" | base64 -d) \
+        "${pkgdir}/usr/share/pixmaps/agenttradr-contributor.png"
+    
+    # Install license
+    install -Dm644 <(echo "MIT License - See https://github.com/agenttradr/agenttradr-contributor/blob/main/LICENSE") \
+        "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

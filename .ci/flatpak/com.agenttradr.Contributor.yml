@@ -1,0 +1,48 @@
+app-id: com.agenttradr.Contributor
+runtime: org.freedesktop.Platform
+runtime-version: '22.08'
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: '22.08'
+command: agenttradr-contributor
+separate-locales: false
+
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --share=network
+  - --device=dri
+  - --filesystem=xdg-download:rw
+  - --filesystem=xdg-documents:rw
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.kde.StatusNotifierItem-*
+  - --system-talk-name=org.freedesktop.UPower
+
+modules:
+  - name: agenttradr-contributor
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 agenttradr-contributor-linux.AppImage /app/bin/agenttradr-contributor-appimage
+      - |
+        cat > /app/bin/agenttradr-contributor << 'EOF'
+        #!/bin/bash
+        export APPIMAGE_EXTRACT_AND_RUN=1
+        exec /app/bin/agenttradr-contributor-appimage "$@"
+        EOF
+      - chmod +x /app/bin/agenttradr-contributor
+      - install -Dm644 com.agenttradr.Contributor.desktop /app/share/applications/com.agenttradr.Contributor.desktop
+      - install -Dm644 com.agenttradr.Contributor.svg /app/share/icons/hicolor/scalable/apps/com.agenttradr.Contributor.svg
+      - install -Dm644 com.agenttradr.Contributor.metainfo.xml /app/share/metainfo/com.agenttradr.Contributor.metainfo.xml
+    sources:
+      - type: file
+        url: https://github.com/agenttradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-linux.AppImage
+        dest-filename: agenttradr-contributor-linux.AppImage
+      - type: file
+        path: com.agenttradr.Contributor.desktop
+      - type: file  
+        path: com.agenttradr.Contributor.svg
+      - type: file
+        path: com.agenttradr.Contributor.metainfo.xml

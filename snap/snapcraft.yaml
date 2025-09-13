@@ -1,0 +1,60 @@
+name: agenttradr-contributor
+version: '1.0.0'
+summary: Earn money with your computer as you sleep
+description: |
+  AgentTradr Contributor lets you earn passive income by contributing 
+  your computer's processing power and AI account access to help train 
+  our trading algorithms. Get paid while you sleep and gain access to 
+  premium trading signals as you rank up through our tier system.
+
+grade: stable
+confinement: strict
+base: core20
+
+architectures:
+  - build-on: amd64
+
+apps:
+  agenttradr-contributor:
+    command: agenttradr-contributor
+    desktop: usr/share/applications/agenttradr-contributor.desktop
+    extensions: [gnome-3-38]
+    plugs:
+      - network
+      - network-bind
+      - home
+      - desktop
+      - desktop-legacy
+      - x11
+      - wayland
+      - opengl
+      - audio-playback
+      - unity7
+      - browser-support
+      - gsettings
+
+parts:
+  agenttradr-contributor:
+    plugin: dump
+    source: https://github.com/agenttradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-linux.AppImage
+    source-type: file
+    override-build: |
+      # Extract AppImage contents
+      chmod +x $SNAPCRAFT_PART_SRC
+      $SNAPCRAFT_PART_SRC --appimage-extract
+      
+      # Install the application
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -r squashfs-root/* $SNAPCRAFT_PART_INSTALL/
+      
+      # Make the main executable available
+      ln -sf $SNAPCRAFT_PART_INSTALL/agenttradr-contributor $SNAPCRAFT_PART_INSTALL/bin/agenttradr-contributor
+      
+    build-packages:
+      - wget
+      - file
+    stage-packages:
+      - libnss3
+      - libgtk-3-0
+      - libgbm1
+      - libasound2

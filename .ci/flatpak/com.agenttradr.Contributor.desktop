@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=AgentTradr Contributor
+Comment=Earn money with your computer as you sleep
+Exec=agenttradr-contributor
+Icon=com.agenttradr.Contributor
+Type=Application
+Categories=Development;Network;Office;
+Keywords=agenttradr;contributor;ai;trading;passive;income;
+StartupWMClass=AgentTradr Contributor
+StartupNotify=true
+MimeType=x-scheme-handler/agenttradr;

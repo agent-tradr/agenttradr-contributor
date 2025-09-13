@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentTradr Contributor</title>
+    <link rel="stylesheet" href="../assets/catpuccin-theme.css">
+    <style>
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .metric-card {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            text-align: center;
+            transition: all var(--transition-base);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .metric-label {
+            color: var(--ctp-subtext1);
+            font-size: 14px;
+        }
+        
+        .work-status {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-lg);
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .status-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .status-dot.working {
+            background: var(--ctp-green);
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.paused {
+            background: var(--ctp-peach);
+        }
+        
+        .status-dot.offline {
+            background: var(--ctp-overlay0);
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(166, 218, 149, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(166, 218, 149, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(166, 218, 149, 0); }
+        }
+        
+        .current-ticket {
+            flex: 1;
+        }
+        
+        .ticket-id {
+            font-family: var(--font-family-mono);
+            font-weight: 600;
+            color: var(--ctp-primary);
+        }
+        
+        .schedule-preview {
+            background: var(--ctp-surface1);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            margin-top: var(--spacing-md);
+        }
+        
+        .time-block {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-sm) 0;
+            border-bottom: 1px solid var(--ctp-overlay0);
+        }
+        
+        .time-block:last-child {
+            border-bottom: none;
+        }
+        
+        .time-range {
+            font-weight: 500;
+        }
+        
+        .next-break {
+            color: var(--ctp-subtext1);
+            font-size: 12px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-lg);
+        }
+        
+        .rank-progress {
+            margin-top: var(--spacing-md);
+        }
+        
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-sm);
+            font-size: 12px;
+            color: var(--ctp-subtext1);
+        }
+        
+        .metric-sublabel {
+            font-size: 12px;
+            color: var(--ctp-subtext1);
+            margin-top: var(--spacing-xs);
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: var(--ctp-green);
+        }
+
+        .notification.error {
+            background: var(--ctp-red);
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <div class="header">
+            <div style="color: var(--ctp-primary); font-size: 24px;">🤖</div>
+            <h1 style="color: var(--ctp-text); font-weight: 600;">AgentTradr Contributor</h1>
+            <div class="badge" id="versionBadge">v1.0.0</div>
+            <div style="margin-left: auto;">
+                <button class="btn btn-outline btn-sm" id="settingsBtn">⚙️ Settings</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Work Status -->
+            <div class="work-status" id="workStatus">
+                <div class="status-dot offline" id="statusDot"></div>
+                <div class="current-ticket">
+                    <div style="font-weight: 500; margin-bottom: var(--spacing-xs);" id="statusText">
+                        Not working
+                    </div>
+                    <div class="text-muted" id="statusDetails">
+                        Click "Start Work" to begin contributing
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="toggleWorkBtn">
+                    ▶️ Start Work
+                </button>
+            </div>
+
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Total Earnings Card -->
+                <div class="metric-card">
+                    <div class="metric-value text-primary" id="totalEarnings">$0.00</div>
+                    <div class="metric-label">Total Earnings</div>
+                    <div class="metric-sublabel" id="thisWeekEarnings">+$0.00 this week</div>
+                </div>
+
+                <!-- Credits Card -->
+                <div class="metric-card">
+                    <div class="metric-value text-success" id="creditsValue">0</div>
+                    <div class="metric-label">Credits Earned</div>
+                    <div class="metric-sublabel" id="creditsThisWeek">+0 this week</div>
+                </div>
+
+                <!-- Status Card -->
+                <div class="metric-card">
+                    <div class="metric-value" style="color: var(--ctp-peach);" id="rankValue">Newcomer</div>
+                    <div class="metric-label">Status Level</div>
+                    <div class="metric-sublabel" id="nextLevelInfo">500 credits to Contributor</div>
+                </div>
+
+                <!-- Monthly Projection Card -->
+                <div class="metric-card">
+                    <div class="metric-value" style="color: var(--ctp-green);" id="monthlyProjection">$35.00</div>
+                    <div class="metric-label">Monthly Projection</div>
+                    <div class="metric-sublabel">Based on current activity</div>
+                </div>
+
+                <!-- Referral Earnings Card -->
+                <div class="metric-card">
+                    <div class="metric-value" style="color: var(--ctp-lavender);" id="referralEarnings">$0.00</div>
+                    <div class="metric-label">Referral Commissions</div>
+                    <div class="metric-sublabel" id="referralCount">0 referrals made</div>
+                </div>
+
+                <!-- Active Devices Card -->
+                <div class="metric-card">
+                    <div class="metric-value" style="color: var(--ctp-yellow);" id="activeDevices">1</div>
+                    <div class="metric-label">Active Devices</div>
+                    <div class="metric-sublabel" id="deviceInfo">This Computer</div>
+                </div>
+
+                <!-- Referral Section -->
+                <div class="metric-card full-width" style="text-align: left;">
+                    <h3 style="color: var(--ctp-text); margin-bottom: var(--spacing-md);">🎁 Refer Friends & Earn 25% Commission</h3>
+                    <div style="display: flex; gap: var(--spacing-md); align-items: center; margin-bottom: var(--spacing-md);">
+                        <input type="text" id="referralLink" placeholder="Generating referral link..." 
+                               style="flex: 1; padding: var(--spacing-sm); border: 1px solid var(--ctp-surface2); border-radius: var(--radius-md);" readonly>
+                        <button class="btn btn-outline" id="copyReferralBtn">📋 Copy</button>
+                        <button class="btn btn-primary" id="shareReferralBtn">🔗 Share</button>
+                    </div>
+                    <div style="font-size: 14px; color: var(--ctp-subtext1);">
+                        Each friend who joins earns you 25% of their monthly earnings as commission!
+                    </div>
+                </div>
+
+                <!-- Progress to Next Level -->
+                <div class="metric-card full-width">
+                    <h3 style="color: var(--ctp-text); margin-bottom: var(--spacing-md);">📈 Progress to Next Level</h3>
+                    <div class="rank-progress">
+                        <div class="progress-info">
+                            <span id="progressText">0% to next rank</span>
+                            <span id="creditsNeeded">0 credits needed</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="rankProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today's Schedule -->
+                <div class="card full-width">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span style="color: var(--ctp-teal);">⏰</span>
+                            Today's Schedule
+                        </div>
+                        <button class="btn btn-outline btn-sm" id="editScheduleBtn">
+                            Edit Schedule
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="schedulePreview">
+                            <div class="text-muted text-center" style="padding: var(--spacing-lg);">
+                                No schedule configured
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span style="color: var(--ctp-blue);">📊</span>
+                            Statistics
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid grid-2" style="gap: var(--spacing-md);">
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: 600; color: var(--ctp-green);" id="ticketsCompleted">0</div>
+                                <div class="text-sm text-muted">Tickets Completed</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: 600; color: var(--ctp-sky);" id="hoursContributed">0.0</div>
+                                <div class="text-sm text-muted">Hours Contributed</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: 600; color: var(--ctp-yellow);" id="successRate">0%</div>
+                                <div class="text-sm text-muted">Success Rate</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: 600; color: var(--ctp-lavender);" id="currentStreak">0</div>
+                                <div class="text-sm text-muted">Current Streak</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span style="color: var(--ctp-pink);">📝</span>
+                            Recent Activity
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentActivity">
+                            <div class="text-muted text-center" style="padding: var(--spacing-lg);">
+                                No recent activity
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-outline" id="viewStatsBtn">
+                    📈 Detailed Stats
+                </button>
+                <button class="btn btn-outline" id="viewRewardsBtn">
+                    🎁 View Rewards
+                </button>
+                <button class="btn btn-outline" id="helpBtn">
+                    ❓ Help & Support
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="dashboard.js"></script>
+</body>
+</html>

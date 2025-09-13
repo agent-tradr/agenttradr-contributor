@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Configuration - AgentTradr Contributor</title>
+    <link rel="stylesheet" href="../assets/catpuccin-theme.css">
+    <style>
+        .schedule-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--spacing-lg);
+        }
+
+        .quick-setup {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .quick-setup-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-md);
+        }
+
+        .day-schedule {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            transition: all var(--transition-base);
+        }
+
+        .day-schedule.enabled {
+            border-color: var(--ctp-mauve);
+            background: linear-gradient(135deg, var(--ctp-surface0), var(--ctp-surface1));
+        }
+
+        .day-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .day-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--ctp-text);
+            text-transform: capitalize;
+        }
+
+        .day-toggle {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--ctp-surface2);
+            transition: var(--transition-base);
+            border-radius: 12px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--ctp-text);
+            transition: var(--transition-base);
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: var(--ctp-mauve);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+            background-color: var(--ctp-base);
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: var(--spacing-md);
+            align-items: center;
+            opacity: 0.5;
+            transition: opacity var(--transition-base);
+        }
+
+        .day-schedule.enabled .time-inputs {
+            opacity: 1;
+        }
+
+        .time-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+        }
+
+        .time-input-label {
+            font-size: 12px;
+            color: var(--ctp-subtext1);
+            font-weight: 500;
+        }
+
+        .time-input {
+            padding: var(--spacing-sm);
+            background: var(--ctp-surface1);
+            border: 1px solid var(--ctp-overlay0);
+            border-radius: var(--radius-sm);
+            color: var(--ctp-text);
+            font-family: var(--font-family-mono);
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .time-input:focus {
+            outline: none;
+            border-color: var(--ctp-mauve);
+            box-shadow: 0 0 0 3px rgba(198, 160, 246, 0.2);
+        }
+
+        .time-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .duration-display {
+            text-align: center;
+            font-size: 12px;
+            color: var(--ctp-subtext1);
+            margin-top: var(--spacing-xs);
+        }
+
+        .settings-section {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+            padding: var(--spacing-sm) 0;
+            border-bottom: 1px solid var(--ctp-overlay0);
+        }
+
+        .setting-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .setting-label {
+            font-weight: 500;
+            color: var(--ctp-text);
+        }
+
+        .setting-description {
+            font-size: 12px;
+            color: var(--ctp-subtext1);
+            margin-top: var(--spacing-xs);
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, var(--ctp-mauve), var(--ctp-lavender));
+            color: var(--ctp-base);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-md);
+        }
+
+        .summary-stat {
+            text-align: center;
+        }
+
+        .summary-stat-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .summary-stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: var(--spacing-md);
+            justify-content: space-between;
+            margin-top: var(--spacing-xl);
+        }
+
+        .timezone-info {
+            background: var(--ctp-surface1);
+            padding: var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            margin-bottom: var(--spacing-md);
+            font-size: 12px;
+            color: var(--ctp-subtext1);
+            text-align: center;
+        }
+
+        .import-export {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+
+        .hidden-file-input {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .time-inputs {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-sm);
+            }
+            
+            .quick-setup-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .import-export {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <div class="header">
+            <button class="btn btn-outline btn-sm" onclick="history.back()">
+                ← Back to Dashboard
+            </button>
+            <h1 style="color: var(--ctp-text); font-weight: 600;">Schedule Configuration</h1>
+            <div style="margin-left: auto;">
+                <button class="btn btn-outline btn-sm" id="helpBtn">❓ Help</button>
+            </div>
+        </div>
+
+        <div class="schedule-container">
+            <!-- Timezone Info -->
+            <div class="timezone-info">
+                <span>🌍 Current timezone: </span>
+                <span id="currentTimezone">Loading...</span>
+            </div>
+
+            <!-- Quick Setup -->
+            <div class="quick-setup">
+                <h3 style="color: var(--ctp-text); margin-bottom: var(--spacing-md);">
+                    ⚡ Quick Setup
+                </h3>
+                <p style="color: var(--ctp-subtext1); margin-bottom: var(--spacing-md);">
+                    Choose a common schedule pattern to get started quickly
+                </p>
+                <div class="quick-setup-buttons">
+                    <button class="btn btn-outline" onclick="scheduleManager.applyPattern('weekdays-9to5')">
+                        🏢 Weekdays 9-5
+                    </button>
+                    <button class="btn btn-outline" onclick="scheduleManager.applyPattern('evenings')">
+                        🌙 Evenings
+                    </button>
+                    <button class="btn btn-outline" onclick="scheduleManager.applyPattern('weekends')">
+                        🎮 Weekends
+                    </button>
+                    <button class="btn btn-outline" onclick="scheduleManager.clearSchedule()">
+                        🗑️ Clear All
+                    </button>
+                </div>
+            </div>
+
+            <!-- Schedule Summary -->
+            <div class="summary-card" id="scheduleSummary">
+                <h3 style="margin-bottom: var(--spacing-sm);">📊 Weekly Summary</h3>
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <div class="summary-stat-value" id="totalHours">0</div>
+                        <div class="summary-stat-label">Total Hours</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="summary-stat-value" id="activeDays">0</div>
+                        <div class="summary-stat-label">Active Days</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="summary-stat-value" id="avgDaily">0.0</div>
+                        <div class="summary-stat-label">Avg Per Day</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="summary-stat-value" id="peakHours">-</div>
+                        <div class="summary-stat-label">Peak Hours</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Schedule Configuration -->
+            <div id="dailySchedules">
+                <!-- Days will be populated by JavaScript -->
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="settings-section">
+                <h3 style="color: var(--ctp-text); margin-bottom: var(--spacing-md);">
+                    ⚙️ Advanced Settings
+                </h3>
+                
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">Max Concurrent Tickets</div>
+                        <div class="setting-description">
+                            Maximum number of tickets to work on simultaneously
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <select class="form-control" id="maxConcurrentTickets" style="width: 80px;">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">Break Duration</div>
+                        <div class="setting-description">
+                            Minutes to wait between tickets
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <input 
+                            type="number" 
+                            class="form-control" 
+                            id="breakDuration" 
+                            min="0" 
+                            max="60" 
+                            style="width: 80px;"
+                        >
+                        <span style="color: var(--ctp-subtext1); font-size: 12px;">min</span>
+                    </div>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">Auto-start Work</div>
+                        <div class="setting-description">
+                            Automatically start working during scheduled hours
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="autoStartWork">
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">Pause on System Sleep</div>
+                        <div class="setting-description">
+                            Pause work when computer goes to sleep
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="pauseOnSleep">
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">Respect Do Not Disturb</div>
+                        <div class="setting-description">
+                            Don't work when system Do Not Disturb is enabled
+                        </div>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="respectDoNotDisturb">
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <div class="import-export">
+                    <button class="btn btn-outline" onclick="scheduleManager.exportSchedule()">
+                        📤 Export
+                    </button>
+                    <button class="btn btn-outline" onclick="document.getElementById('importFile').click()">
+                        📥 Import
+                    </button>
+                    <input type="file" id="importFile" class="hidden-file-input" accept=".json" 
+                           onchange="scheduleManager.importSchedule(event)">
+                </div>
+                
+                <div style="display: flex; gap: var(--spacing-md);">
+                    <button class="btn btn-outline" id="resetBtn">
+                        🔄 Reset to Default
+                    </button>
+                    <button class="btn btn-primary" id="saveBtn">
+                        💾 Save Schedule
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="schedule.js"></script>
+</body>
+</html>
