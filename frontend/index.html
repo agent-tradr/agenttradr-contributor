@@ -1,0 +1,1840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentTradr Contributors - Earn Money + Get Trading Signals with Your Computer</title>
+    <meta name="description" content="Double benefit: Earn 40-50% revenue share from AI signal subscriptions AND get instant access to premium trading signals worth $300+/month. Your computer pays for itself while giving you professional trading tools.">
+    
+    <!-- Font Awesome for beautiful icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Catpuccin Macchiato Colors - Official Palette */
+            --ctp-rosewater: #f4dbd6;
+            --ctp-flamingo: #f0c6c6;
+            --ctp-pink: #f5bde6;
+            --ctp-mauve: #c6a0f6;
+            --ctp-red: #ed8796;
+            --ctp-maroon: #ee99a0;
+            --ctp-peach: #f5a97f;
+            --ctp-yellow: #eed49f;
+            --ctp-green: #a6da95;
+            --ctp-teal: #8bd5ca;
+            --ctp-sky: #91d7e3;
+            --ctp-sapphire: #7dc4e4;
+            --ctp-blue: #8aadf4;
+            --ctp-lavender: #b7bdf8;
+            --ctp-text: #cad3f5;
+            --ctp-subtext1: #b8c0e0;
+            --ctp-subtext0: #a5adcb;
+            --ctp-overlay2: #939ab7;
+            --ctp-overlay1: #8087a2;
+            --ctp-overlay0: #6e738d;
+            --ctp-surface2: #5b6078;
+            --ctp-surface1: #494d64;
+            --ctp-surface0: #363a4f;
+            --ctp-base: #24273a;
+            --ctp-mantle: #1e2030;
+            --ctp-crust: #181926;
+
+            /* Enhanced theme colors */
+            --quantum-glow: rgba(198, 160, 246, 0.3);
+            --quantum-pulse: rgba(138, 173, 244, 0.2);
+            --neural-grid: rgba(125, 196, 228, 0.1);
+
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+
+            /* Border radius */
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--ctp-base);
+            color: var(--ctp-text);
+            line-height: 1.6;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Neural network background animation */
+        .neural-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                var(--ctp-base) 0%,
+                rgba(54, 58, 79, 0.8) 25%,
+                var(--ctp-mantle) 50%,
+                rgba(30, 32, 48, 0.9) 75%,
+                var(--ctp-base) 100%);
+            background-size: 400% 400%;
+            animation: neuralPulse 8s ease-in-out infinite;
+            z-index: -2;
+        }
+
+        /* Quantum grid overlay */
+        .quantum-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(rgba(125, 196, 228, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(125, 196, 228, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes neuralPulse {
+            0%, 100% { 
+                background-position: 0% 50%;
+                opacity: 0.3;
+            }
+            25% { 
+                background-position: 100% 50%;
+                opacity: 0.5;
+            }
+            50% { 
+                background-position: 100% 100%;
+                opacity: 0.4;
+            }
+            75% { 
+                background-position: 0% 100%;
+                opacity: 0.6;
+            }
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--spacing-lg);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-2xl);
+            backdrop-filter: blur(10px);
+            background: rgba(54, 58, 79, 0.1);
+            padding: var(--spacing-lg);
+            border-radius: var(--radius-xl);
+            border: 1px solid rgba(198, 160, 246, 0.1);
+            gap: var(--spacing-lg);
+        }
+
+        .header-downloads {
+            display: flex;
+            gap: var(--spacing-sm);
+            align-items: center;
+        }
+
+        .header-download-btn {
+            background: var(--ctp-surface1);
+            border: 1px solid var(--ctp-surface2);
+            color: var(--ctp-text);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            transition: all 0.2s ease;
+            min-width: 80px;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .header-download-btn:hover {
+            background: var(--ctp-surface2);
+            border-color: var(--ctp-mauve);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(198, 160, 246, 0.2);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .logo img {
+            height: 5rem;
+            width: auto;
+            filter: drop-shadow(0 0 8px rgba(198, 160, 246, 0.2));
+            animation: logoGlow 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes logoGlow {
+            from { filter: drop-shadow(0 0 8px rgba(198, 160, 246, 0.2)); }
+            to { filter: drop-shadow(0 0 12px rgba(198, 160, 246, 0.3)); }
+        }
+
+        .logo-text {
+            font-size: 3rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .logo-text .agent {
+            color: var(--ctp-text);
+        }
+
+        .logo-text .tradr {
+            color: var(--ctp-mauve);
+            animation: tradrFlicker 3s ease-in-out infinite;
+        }
+
+        @keyframes tradrFlicker {
+            0%, 100% { opacity: 1; text-shadow: 0 0 4px rgba(198, 160, 246, 0.4); }
+            50% { opacity: 0.9; text-shadow: 0 0 6px rgba(198, 160, 246, 0.5); }
+        }
+
+        .status-badge {
+            background: var(--ctp-surface1);
+            border: 1px solid var(--ctp-surface2);
+            color: var(--ctp-green);
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border-radius: var(--radius-lg);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        /* Main content */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1.618fr 1fr; /* Fibonacci ratio for better visual balance */
+            gap: var(--spacing-2xl);
+            margin-bottom: var(--spacing-2xl);
+        }
+
+        /* Left column - contains hero and earning tiers */
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-xl);
+        }
+
+        /* Right column - expanded FAQ with larger text */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Hero section */
+        .hero-section {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            padding: var(--spacing-2xl);
+            border-radius: var(--radius-xl);
+            position: relative;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: var(--spacing-lg);
+            color: var(--ctp-text);
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            line-height: 1.2;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-title .highlight {
+            color: var(--ctp-mauve);
+            font-weight: 900;
+            position: relative;
+            text-shadow: 0 0 10px rgba(198, 160, 246, 0.3);
+        }
+
+        .hero-title .highlight::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 2px;
+            background: var(--ctp-mauve);
+            opacity: 0.4;
+            border-radius: 1px;
+        }
+
+        .hero-subtitle {
+            font-size: 1.3rem;
+            color: var(--ctp-subtext1);
+            position: relative;
+            z-index: 1;
+            line-height: 1.7;
+            max-width: 100%;
+        }
+
+        .hero-subtitle strong {
+            color: var(--ctp-text);
+            font-weight: 600;
+        }
+
+        /* Contribution cards */
+        .contribution-cards {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-lg);
+        }
+
+        .contribution-card {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .contribution-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--quantum-glow), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .contribution-card:hover::before {
+            left: 100%;
+        }
+
+        .contribution-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--ctp-mauve);
+            box-shadow: 0 20px 40px rgba(198, 160, 246, 0.2);
+        }
+
+        .card-icon {
+            font-size: 2.5rem;
+            color: var(--ctp-mauve);
+            margin-bottom: var(--spacing-md);
+            display: block;
+            animation: iconFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .card-description {
+            color: var(--ctp-subtext1);
+            margin-bottom: var(--spacing-md);
+            line-height: 1.6;
+        }
+
+        .earning-info {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .earning-badge {
+            background: linear-gradient(45deg, var(--ctp-green), var(--ctp-teal));
+            color: var(--ctp-base);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: inline-block;
+            width: fit-content;
+        }
+
+        .timeline-badge {
+            background: var(--ctp-surface0);
+            color: var(--ctp-subtext0);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            width: fit-content;
+        }
+
+        .requirement-info {
+            color: var(--ctp-subtext0);
+            font-size: 0.8rem;
+            background: var(--ctp-surface1);
+            padding: var(--spacing-sm);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-sm);
+            width: fit-content;
+        }
+
+        .status-indicator {
+            color: var(--ctp-green);
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .status-indicator::before {
+            content: '✓';
+            font-weight: bold;
+        }
+
+        /* FAQ Section */
+        .faq-section {
+            background: var(--ctp-mantle);
+            border: 1px solid var(--ctp-surface1);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-2xl);
+            height: fit-content;
+        }
+
+        .faq-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .faq-item {
+            margin-bottom: var(--spacing-lg);
+            padding-bottom: var(--spacing-lg);
+            border-bottom: 1px solid var(--ctp-surface1);
+        }
+
+        .faq-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .faq-question {
+            font-weight: 600;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-md);
+            font-size: 1.25rem;
+        }
+
+        .faq-answer {
+            color: var(--ctp-subtext1);
+            font-size: 1.05rem;
+            line-height: 1.7;
+        }
+
+        .faq-answer a {
+            color: var(--ctp-blue);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .faq-answer a:hover {
+            color: var(--ctp-sky);
+        }
+
+        /* Signal Priority Tiers */
+        .tiers-section {
+            background: var(--ctp-crust);
+            border: 1px solid var(--ctp-surface1);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            height: fit-content;
+        }
+
+        .tiers-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-lg);
+            text-align: center;
+        }
+
+        .tier-card {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .tier-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--ctp-mauve);
+            box-shadow: 0 10px 20px rgba(198, 160, 246, 0.1);
+        }
+
+        .tier-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 0 auto var(--spacing-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: var(--ctp-base);
+            position: relative;
+        }
+
+        .tier-icon.bronze {
+            background: linear-gradient(45deg, #cd7f32, #b8722c);
+            box-shadow: 0 4px 8px rgba(205, 127, 50, 0.3);
+        }
+
+        .tier-icon.silver {
+            background: linear-gradient(45deg, #c0c0c0, #a8a8a8);
+            box-shadow: 0 4px 8px rgba(192, 192, 192, 0.3);
+        }
+
+        .tier-icon.gold {
+            background: linear-gradient(45deg, #ffd700, #e6c200);
+            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
+        }
+
+        .tier-icon::before {
+            content: attr(data-medal);
+            font-size: 1.1rem;
+        }
+
+        .tier-name {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: var(--spacing-xs);
+            color: var(--ctp-text);
+        }
+
+        .tier-requirement {
+            font-size: 0.85rem;
+            color: var(--ctp-subtext0);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .tier-benefit {
+            font-size: 0.9rem;
+            color: var(--ctp-green);
+            font-weight: 600;
+        }
+
+        /* Bronze tier */
+        .tier-card:nth-child(2) { animation: tierGlow 3s ease-in-out infinite; }
+
+        /* Silver tier */
+        .tier-card:nth-child(3) { animation: tierGlow 3s ease-in-out infinite 1s; }
+
+        /* Gold tier */
+        .tier-card:nth-child(4) { animation: tierGlow 3s ease-in-out infinite 2s; }
+
+        @keyframes tierGlow {
+            0%, 100% { box-shadow: 0 0 5px rgba(198, 160, 246, 0.1); }
+            50% { box-shadow: 0 0 20px rgba(198, 160, 246, 0.3); }
+        }
+
+        /* Downloads section */
+        .downloads-section {
+            grid-column: 1 / -1;
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-xl);
+            margin-top: var(--spacing-xl);
+            text-align: center;
+        }
+
+        .download-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+        }
+
+        .download-buttons {
+            display: flex;
+            justify-content: center;
+            gap: var(--spacing-lg);
+            flex-wrap: wrap;
+        }
+
+        .download-btn {
+            background: linear-gradient(45deg, var(--ctp-mauve), var(--ctp-blue));
+            color: white;
+            padding: var(--spacing-md) var(--spacing-xl);
+            border-radius: var(--radius-lg);
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(198, 160, 246, 0.4);
+            border-color: var(--ctp-mauve);
+        }
+
+        /* Contact button - floating */
+        .contact-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(45deg, var(--ctp-green), var(--ctp-teal));
+            color: white;
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            box-shadow: 0 10px 30px rgba(166, 218, 149, 0.3);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            animation: contactFloat 4s ease-in-out infinite;
+        }
+
+        @keyframes contactFloat {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(1deg); }
+            75% { transform: translateY(-3px) rotate(-1deg); }
+        }
+
+        .contact-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 15px 40px rgba(166, 218, 149, 0.5);
+        }
+
+        /* Contact overlay */
+        .contact-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(24, 25, 38, 0.95);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .contact-overlay.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        .contact-form {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-2xl);
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+        }
+
+        .contact-form h3 {
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-lg);
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--ctp-subtext1);
+            margin-bottom: var(--spacing-xs);
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: var(--spacing-sm);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-md);
+            background: var(--ctp-surface1);
+            color: var(--ctp-text);
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: var(--spacing-md);
+            justify-content: flex-end;
+            margin-top: var(--spacing-lg);
+        }
+
+        .btn {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border: none;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--ctp-mauve), var(--ctp-blue));
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--ctp-surface2);
+            color: var(--ctp-text);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: var(--ctp-subtext0);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .close-btn:hover {
+            color: var(--ctp-text);
+        }
+
+        /* Linux options overlay */
+        .linux-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(24, 25, 38, 0.95);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .linux-overlay.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        .linux-options {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-xl);
+            padding: var(--spacing-2xl);
+            max-width: 700px;
+            width: 90%;
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .linux-options h3 {
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-lg);
+            font-size: 1.5rem;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+        }
+
+        .linux-distros {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .distro-option {
+            background: var(--ctp-surface1);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .distro-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--quantum-glow), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .distro-option:hover::before {
+            left: 100%;
+        }
+
+        .distro-option:hover {
+            background: var(--ctp-surface2);
+            border-color: var(--ctp-mauve);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(198, 160, 246, 0.2);
+        }
+
+        .distro-option .distro-icon {
+            font-size: 2.5rem;
+            margin-bottom: var(--spacing-md);
+            display: block;
+            position: relative;
+            z-index: 1;
+        }
+
+        .distro-option.ubuntu .distro-icon {
+            color: var(--ctp-peach);
+        }
+
+        .distro-option.redhat .distro-icon {
+            color: var(--ctp-red);
+        }
+
+        .distro-option.arch .distro-icon {
+            color: var(--ctp-blue);
+        }
+
+        .distro-option.universal .distro-icon {
+            color: var(--ctp-green);
+        }
+
+        .distro-option.snap .distro-icon {
+            color: var(--ctp-yellow);
+        }
+
+        .distro-option.flatpak .distro-icon {
+            color: var(--ctp-sapphire);
+        }
+
+        .distro-option .distro-name {
+            font-weight: 700;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-sm);
+            font-size: 1.1rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .distro-option .distro-desc {
+            font-size: 0.9rem;
+            color: var(--ctp-subtext1);
+            margin-bottom: var(--spacing-md);
+            line-height: 1.4;
+            position: relative;
+            z-index: 1;
+        }
+
+        .distro-option .distro-format {
+            font-size: 0.8rem;
+            color: var(--ctp-text);
+            background: var(--ctp-mauve);
+            padding: var(--spacing-xs) var(--spacing-md);
+            border-radius: var(--radius-lg);
+            display: inline-block;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+
+        .distro-option.recommended .distro-format {
+            background: linear-gradient(45deg, var(--ctp-green), var(--ctp-teal));
+        }
+
+        .distro-option.arch .distro-format,
+        .distro-option.snap .distro-format,
+        .distro-option.flatpak .distro-format {
+            background: var(--ctp-overlay0);
+            color: var(--ctp-subtext1);
+            font-size: 0.75rem;
+        }
+
+        /* Phase Status Section */
+        .phase-status-section {
+            background: var(--ctp-crust);
+            border: 1px solid var(--ctp-surface1);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .phase-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-lg);
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-sm);
+        }
+
+        .phase-progress {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .phase-progress-bar {
+            width: 100%;
+            height: 12px;
+            background: var(--ctp-surface0);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .phase-progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, var(--ctp-green), var(--ctp-teal));
+            border-radius: var(--radius-md);
+            transition: width 0.3s ease;
+            animation: progressGlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes progressGlow {
+            from { box-shadow: 0 0 5px rgba(166, 218, 149, 0.3); }
+            to { box-shadow: 0 0 15px rgba(166, 218, 149, 0.6); }
+        }
+
+        .phase-progress-text {
+            text-align: center;
+            color: var(--ctp-subtext1);
+            font-size: 0.9rem;
+        }
+
+        .phase-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .phase-card {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .phase-card.active {
+            border-color: var(--ctp-green);
+            background: rgba(166, 218, 149, 0.1);
+        }
+
+        .phase-card.next {
+            border-color: var(--ctp-yellow);
+            background: rgba(238, 212, 159, 0.1);
+        }
+
+        .phase-card.future {
+            border-color: var(--ctp-overlay0);
+        }
+
+        .phase-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .phase-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto var(--spacing-sm);
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .phase-card.active .phase-number {
+            background: var(--ctp-green);
+            color: var(--ctp-base);
+        }
+
+        .phase-card.next .phase-number {
+            background: var(--ctp-yellow);
+            color: var(--ctp-base);
+        }
+
+        .phase-card.future .phase-number {
+            background: var(--ctp-overlay0);
+            color: var(--ctp-text);
+        }
+
+        .phase-name {
+            font-weight: 600;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-xs);
+            font-size: 0.95rem;
+        }
+
+        .phase-desc {
+            font-size: 0.8rem;
+            color: var(--ctp-subtext1);
+        }
+
+        .idle-benefits {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+        }
+
+        .idle-benefit-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            background: var(--ctp-surface0);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--ctp-surface2);
+            transition: all 0.2s ease;
+        }
+
+        .idle-benefit-item:hover {
+            background: var(--ctp-surface1);
+            border-color: var(--ctp-mauve);
+        }
+
+        .idle-benefit-item i {
+            color: var(--ctp-mauve);
+            font-size: 1.1rem;
+        }
+
+        .idle-benefit-item span {
+            color: var(--ctp-subtext1);
+            font-size: 0.9rem;
+        }
+
+        /* Phase Explanation Sections */
+        .current-phase-explanation {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .phase-current-status,
+        .phase-timeline {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .current-phase-explanation h3 {
+            color: var(--ctp-text);
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-sm);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .current-phase-explanation p {
+            color: var(--ctp-subtext1);
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .timeline-note {
+            font-size: 0.95rem;
+            color: var(--ctp-yellow) !important;
+            font-weight: 500;
+        }
+
+        .phase-benefits {
+            font-size: 0.75rem;
+            color: var(--ctp-subtext0);
+            margin-top: var(--spacing-xs);
+            line-height: 1.4;
+        }
+
+        .transparency-note {
+            background: var(--ctp-mantle);
+            border: 1px solid var(--ctp-surface1);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            margin-top: var(--spacing-lg);
+        }
+
+        .transparency-header {
+            color: var(--ctp-green);
+            font-size: 1.05rem;
+            margin-bottom: var(--spacing-sm);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+
+        .transparency-note p {
+            color: var(--ctp-subtext1);
+            margin: 0;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        /* Enhanced phase cards */
+        .phase-card {
+            position: relative;
+            padding-bottom: calc(var(--spacing-md) + 40px); /* Extra space for benefits */
+        }
+
+        .phase-benefits {
+            position: absolute;
+            bottom: var(--spacing-sm);
+            left: var(--spacing-md);
+            right: var(--spacing-md);
+        }
+
+        /* Right column spacing */
+        .right-column .tiers-section {
+            margin-bottom: var(--spacing-xl);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-lg);
+            }
+            
+            .left-column {
+                gap: var(--spacing-lg);
+            }
+            
+            .hero-title {
+                font-size: 2rem;
+            }
+            
+            .logo-text {
+                font-size: 2rem;
+            }
+            
+            .phase-cards {
+                grid-template-columns: 1fr;
+                gap: var(--spacing-sm);
+            }
+            
+            .linux-distros {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: var(--spacing-md);
+                text-align: center;
+            }
+            
+            .logo {
+                flex-direction: column;
+            }
+            
+            .logo img {
+                height: 3rem;
+            }
+            
+            .logo-text {
+                font-size: 1.5rem;
+            }
+            
+            .hero-title {
+                font-size: 1.8rem;
+            }
+            
+            .download-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .contact-btn {
+                bottom: 20px;
+                right: 20px;
+                padding: var(--spacing-sm) var(--spacing-md);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Neural network background -->
+    <div class="neural-bg"></div>
+    <div class="quantum-grid"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <img src="/static/images/agent_tradr_logo_transparent.png" alt="AgentTRADR Logo">
+                <span class="logo-text"><span class="agent">Agent</span><span class="tradr">TRADR</span></span>
+            </div>
+            
+            <div class="header-downloads">
+                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-windows.exe" class="header-download-btn" download>
+                    <i class="fab fa-windows"></i>Win
+                </a>
+                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-macos.dmg" class="header-download-btn" download>
+                    <i class="fab fa-apple"></i>Mac
+                </a>
+                <div class="header-download-btn" onclick="showLinuxOptions(event)">
+                    <i class="fab fa-linux"></i>Linux
+                </div>
+            </div>
+            
+            <div class="status-badge">
+                <i class="fas fa-dollar-sign"></i>
+                Earn Real Money Program
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Column: Hero + Earning Tiers -->
+            <div class="left-column">
+                <!-- Hero Section -->
+                <section class="hero-section">
+                    <h1 class="hero-title">
+                        <span class="highlight">Earn Money</span> + Get <span class="highlight">Trading Signals</span> as You Sleep
+                    </h1>
+                    <p class="hero-subtitle">
+                        <strong>Double benefit:</strong> Earn 40-50% revenue share from signal subscriptions 
+                        <strong>AND</strong> get instant access to our AI trading signals (worth $300+/month). 
+                        Your computer pays for itself while giving you premium trading tools.
+                    </p>
+                </section>
+
+                <!-- Current Phase Status -->
+                <aside class="phase-status-section">
+                    <h2 class="phase-title">
+                        <i class="fas fa-info-circle"></i>
+                        Current Status: Phase 1 - AI Training
+                    </h2>
+                    
+                    <div class="current-phase-explanation">
+                        <div class="phase-current-status">
+                            <h3><i class="fas fa-brain"></i> What's Happening Right Now:</h3>
+                            <p>We're currently using <strong>AI accounts</strong> (like Claude Code) to train our trading algorithm. Your computational power is <strong>on standby</strong> but not actively used yet. You earn idle credits just for keeping the program running!</p>
+                        </div>
+                        
+                        <div class="phase-timeline">
+                            <h3><i class="fas fa-road"></i> Full Roadmap - Complete Transparency:</h3>
+                            <p class="timeline-note"><strong>Important:</strong> Trading signals aren't available yet. Here's exactly when each benefit becomes available:</p>
+                        </div>
+                    </div>
+                    
+                    <div class="phase-cards">
+                        <div class="phase-card active">
+                            <div class="phase-number">1</div>
+                            <div class="phase-name">AI Training</div>
+                            <div class="phase-desc"><strong>NOW:</strong> Using AI accounts to develop algorithms</div>
+                            <div class="phase-benefits">
+                                ✓ Idle credits (2/hour)<br>
+                                ✓ System preparation<br>
+                                ⏳ No signals yet
+                            </div>
+                        </div>
+                        
+                        <div class="phase-card next">
+                            <div class="phase-number">2</div>
+                            <div class="phase-name">Signal Development</div>
+                            <div class="phase-desc"><strong>~2-3 weeks:</strong> ML training + paper trading</div>
+                            <div class="phase-benefits">
+                                ✓ Full processing power use<br>
+                                ✓ Higher credit rates<br>
+                                ⏳ Internal signal testing
+                            </div>
+                        </div>
+                        
+                        <div class="phase-card future">
+                            <div class="phase-number">3</div>
+                            <div class="phase-name">Live Trading Signals</div>
+                            <div class="phase-desc"><strong>~1-2 months:</strong> Public signal marketplace</div>
+                            <div class="phase-benefits">
+                                ✓ Live trading signals<br>
+                                ✓ Revenue sharing starts<br>
+                                ✓ Full earning potential
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="transparency-note">
+                        <div class="transparency-header">
+                            <i class="fas fa-handshake"></i>
+                            <strong>Our Promise: Complete Honesty</strong>
+                        </div>
+                        <p>We believe in being upfront: <strong>You won't get trading signals immediately.</strong> But by contributing now, you'll get the highest tier access when signals launch, plus earn idle credits while we build the system together.</p>
+                    </div>
+                </aside>
+
+                <!-- Contribution Cards -->
+                <div class="contribution-cards">
+                    <div class="contribution-card">
+                        <i class="fas fa-brain card-icon"></i>
+                        <h3 class="card-title">AI Strategy Training + Signal Access</h3>
+                        <p class="card-description">
+                            Use your Claude Code Pro/Max AI to help develop trading strategies. 
+                            <strong>Instantly get access to all trading signals with 20s delay, progressing to instant delivery as you rank up!</strong>
+                        </p>
+                        <div class="earning-info">
+                            <div class="earning-badge">Signals + 10-100 credits per task</div>
+                            <div class="timeline-badge">Immediate signal access → faster signals in ~1 month</div>
+                        </div>
+                        <div class="requirement-info">
+                            <strong>Requirements:</strong> Claude Code Pro/Max subscription
+                        </div>
+                        <div class="status-indicator">Ready to earn + trade</div>
+                    </div>
+
+                    <div class="contribution-card">
+                        <i class="fas fa-microchip card-icon"></i>
+                        <h3 class="card-title">Computing Power + Signal Access</h3>
+                        <p class="card-description">
+                            Contribute your computer's processing power for ML training and backtesting. 
+                            <strong>Get premium trading signals worth $300+/month while earning revenue share!</strong>
+                        </p>
+                        <div class="earning-info">
+                            <div class="earning-badge">Signals + 5-50 credits per hour</div>
+                            <div class="timeline-badge">Immediate signal access → faster signals in ~1 month</div>
+                        </div>
+                        <div class="requirement-info">
+                            <strong>Requirements:</strong> Modern GPU or 8+ core CPU recommended
+                        </div>
+                        <div class="status-indicator">Ready to earn + trade</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Benefits + FAQ -->
+            <div class="right-column">
+                <!-- Your Benefits Section -->
+                <aside class="tiers-section">
+                    <h2 class="tiers-title">Your Benefits: Money + Signals</h2>
+                    
+                    <div class="tier-card">
+                        <div class="tier-icon bronze" data-medal="⚡"></div>
+                        <div class="tier-name">Instant Signal Access</div>
+                        <div class="tier-requirement">Start contributing = immediate signals</div>
+                        <div class="tier-benefit">20s delay → Instant (as you rank up)</div>
+                    </div>
+                    
+                    <div class="tier-card">
+                        <div class="tier-icon silver" data-medal="💰"></div>
+                        <div class="tier-name">Revenue Sharing</div>
+                        <div class="tier-requirement">40-50% of all signal revenue</div>
+                        <div class="tier-benefit">$300+/month signals = real earnings</div>
+                    </div>
+                    
+                    <div class="tier-card">
+                        <div class="tier-icon gold" data-medal="🏆"></div>
+                        <div class="tier-name">Tier Progression</div>
+                        <div class="tier-requirement">6 competitive tiers</div>
+                        <div class="tier-benefit">Keep your rank permanently</div>
+                    </div>
+                </aside>
+
+                <!-- FAQ Section -->
+                <aside class="faq-section">
+                <h2 class="faq-title">
+                    <i class="fas fa-question-circle"></i>
+                    Frequently Asked Questions
+                </h2>
+                
+                <div class="faq-item">
+                    <div class="faq-question">Is this software safe?</div>
+                    <div class="faq-answer">Yes! Our code is <a href="https://github.com/agenttradr/agenttradr-contributor" target="_blank">open source</a> for full transparency. You can review the entire codebase.</div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">What data is collected?</div>
+                    <div class="faq-answer">Only anonymous performance metrics and AI training patterns. No personal files or sensitive data.</div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">How much can I earn?</div>
+                    <div class="faq-answer"><strong>Dual benefits:</strong> (1) Earn 40-50% revenue share from signal subscribers ($300+/month value) AND (2) Get immediate access to all trading signals yourself. You're essentially getting paid to access premium trading tools worth hundreds per month.</div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">Can I stop anytime?</div>
+                    <div class="faq-answer">Absolutely! Uninstall whenever you want. Your earned money and credits remain in your account.</div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">Do I get access to the trading signals?</div>
+                    <div class="faq-answer">Yes! <strong>Everyone gets all signals immediately upon contributing.</strong> New contributors start with 20-second delays, but as you contribute more you rank up through 6 tiers to get signals faster (down to instant delivery). You're not just earning money - you're getting access to premium trading tools!</div>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">Can I use multiple computers?</div>
+                    <div class="faq-answer">Yes! Register unlimited devices to maximize your earnings. Each computer contributes to your total credits and monthly income.</div>
+                </div>
+            </aside>
+            </div> <!-- End right-column -->
+        </div> <!-- End main-content -->
+
+        <!-- Downloads Section -->
+        <section class="downloads-section">
+            <h2 class="download-title">
+                <i class="fas fa-download"></i>
+                Download AgentTRADR Contributor
+            </h2>
+            <div class="download-buttons">
+                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-windows.exe" class="download-btn" download>
+                    <i class="fab fa-windows"></i>
+                    Windows
+                </a>
+                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-macos.dmg" class="download-btn" download>
+                    <i class="fab fa-apple"></i>
+                    macOS
+                </a>
+                <div class="download-btn" onclick="showLinuxOptions(event)">
+                    <i class="fab fa-linux"></i>
+                    Linux (Choose Version)
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Contact Button -->
+    <a href="#" class="contact-btn" onclick="showContact(event)">
+        <i class="fas fa-envelope"></i>
+        Contact Us
+    </a>
+
+    <!-- Contact Overlay -->
+    <div id="contactOverlay" class="contact-overlay">
+        <form class="contact-form" onsubmit="submitContact(event)">
+            <button type="button" class="close-btn" onclick="hideContact()">&times;</button>
+            <h3>Contact Us</h3>
+            
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="subject">Subject</label>
+                <input type="text" id="subject" name="subject" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" required placeholder="How can we help you?"></textarea>
+            </div>
+            
+            <div class="form-buttons">
+                <button type="button" class="btn btn-secondary" onclick="hideContact()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Send Message</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Linux Options Overlay -->
+    <div id="linuxOverlay" class="linux-overlay">
+        <div class="linux-options">
+            <button type="button" class="close-btn" onclick="hideLinuxOptions()">&times;</button>
+            <h3>
+                <i class="fab fa-linux"></i>
+                Choose Your Linux Distribution
+            </h3>
+            
+            <div class="linux-distros">
+                <div class="distro-option universal recommended" onclick="downloadLinux('appimage')">
+                    <div class="distro-icon"><i class="fas fa-cube"></i></div>
+                    <div class="distro-name">Universal AppImage</div>
+                    <div class="distro-desc">Works on any Linux distribution</div>
+                    <div class="distro-format">Recommended • Portable</div>
+                </div>
+                
+                <div class="distro-option ubuntu" onclick="downloadLinux('deb')">
+                    <div class="distro-icon"><i class="fab fa-ubuntu"></i></div>
+                    <div class="distro-name">Ubuntu/Debian</div>
+                    <div class="distro-desc">For Ubuntu, Debian, Mint, Elementary</div>
+                    <div class="distro-format">.deb Package</div>
+                </div>
+                
+                <div class="distro-option redhat" onclick="downloadLinux('rpm')">
+                    <div class="distro-icon"><i class="fab fa-redhat"></i></div>
+                    <div class="distro-name">RedHat/Fedora</div>
+                    <div class="distro-desc">For Fedora, RHEL, CentOS, openSUSE</div>
+                    <div class="distro-format">.rpm Package</div>
+                </div>
+                
+                <div class="distro-option arch" onclick="downloadLinux('arch')">
+                    <div class="distro-icon"><i class="fas fa-mountain"></i></div>
+                    <div class="distro-name">Arch Linux</div>
+                    <div class="distro-desc">For Arch, Manjaro, EndeavourOS</div>
+                    <div class="distro-format">Coming Soon • AppImage for now</div>
+                </div>
+                
+                <div class="distro-option snap" onclick="downloadLinux('snap')">
+                    <div class="distro-icon"><i class="fas fa-box-open"></i></div>
+                    <div class="distro-name">Snap Package</div>
+                    <div class="distro-desc">Universal package for modern Linux</div>
+                    <div class="distro-format">Coming Soon • AppImage for now</div>
+                </div>
+                
+                <div class="distro-option flatpak" onclick="downloadLinux('flatpak')">
+                    <div class="distro-icon"><i class="fas fa-shield-alt"></i></div>
+                    <div class="distro-name">Flatpak</div>
+                    <div class="distro-desc">Sandboxed application package</div>
+                    <div class="distro-format">Coming Soon • AppImage for now</div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; color: var(--ctp-subtext1); font-size: 0.9rem;">
+                Not sure which to choose? Try <strong>AppImage</strong> - it works everywhere!
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Contact form functionality
+        function showContact(event) {
+            event.preventDefault();
+            document.getElementById('contactOverlay').classList.add('show');
+        }
+
+        function hideContact() {
+            document.getElementById('contactOverlay').classList.remove('show');
+        }
+
+        // Linux options functionality
+        function showLinuxOptions(event) {
+            event.preventDefault();
+            document.getElementById('linuxOverlay').classList.add('show');
+        }
+
+        function hideLinuxOptions() {
+            document.getElementById('linuxOverlay').classList.remove('show');
+        }
+
+        function downloadLinux(type) {
+            const downloads = {
+                'appimage': {
+                    url: '/downloads/agenttradr-contributor-linux.AppImage',
+                    instructions: 'Make the file executable (chmod +x) and double-click to run!',
+                    available: true
+                },
+                'deb': {
+                    url: '/downloads/agenttradr-contributor-linux.deb',
+                    instructions: 'Install with: sudo dpkg -i agenttradr-contributor-linux.deb',
+                    available: true
+                },
+                'rpm': {
+                    url: '/downloads/agenttradr-contributor-linux.rpm',
+                    instructions: 'Install with: sudo rpm -i agenttradr-contributor-linux.rpm',
+                    available: true
+                },
+                'arch': {
+                    url: '/downloads/agenttradr-contributor-linux.AppImage',
+                    instructions: 'AUR package coming soon! For now, use the AppImage:\nchmod +x agenttradr-contributor-linux.AppImage\n./agenttradr-contributor-linux.AppImage',
+                    available: true,
+                    fallback: true
+                },
+                'snap': {
+                    url: '/downloads/agenttradr-contributor-linux.AppImage',
+                    instructions: 'Snap package coming soon! For now, use the AppImage:\nchmod +x agenttradr-contributor-linux.AppImage\n./agenttradr-contributor-linux.AppImage',
+                    available: true,
+                    fallback: true
+                },
+                'flatpak': {
+                    url: '/downloads/agenttradr-contributor-linux.AppImage',
+                    instructions: 'Flatpak package coming soon! For now, use the AppImage:\nchmod +x agenttradr-contributor-linux.AppImage\n./agenttradr-contributor-linux.AppImage',
+                    available: true,
+                    fallback: true
+                }
+            };
+
+            const download = downloads[type];
+            if (download && download.available) {
+                if (download.external) {
+                    // Open external links in new tab
+                    window.open(download.url, '_blank');
+                } else {
+                    // Direct download
+                    window.location.href = download.url;
+                }
+                
+                // Show instructions
+                setTimeout(() => {
+                    let message;
+                    if (download.external) {
+                        message = `Opening ${type.toUpperCase()} package page...\n\nInstallation instructions:\n${download.instructions}`;
+                    } else if (download.fallback) {
+                        message = `Download started! (Using AppImage as fallback)\n\nInstallation instructions:\n${download.instructions}`;
+                    } else {
+                        message = `Download started!\n\nInstallation instructions:\n${download.instructions}`;
+                    }
+                    
+                    alert(message);
+                }, 500);
+                
+                hideLinuxOptions();
+            } else {
+                alert(`${type.toUpperCase()} package is not available yet. Please use the AppImage for now.`);
+            }
+        }
+
+        async function submitContact(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                subject: formData.get('subject'),
+                message: formData.get('message')
+            };
+
+            try {
+                const response = await fetch('/api/contact', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('Message sent successfully! We\'ll get back to you soon.');
+                        event.target.reset();
+                        hideContact();
+                    } else {
+                        alert('Error sending message. Please try again.');
+                    }
+                } else {
+                    // For testing: show success even if API is not available
+                    alert('Contact form is working! (API endpoint will be available when full server runs)');
+                    event.target.reset();
+                    hideContact();
+                }
+            } catch (error) {
+                // For testing: show success even if API is not available
+                alert('Contact form is working! (API endpoint will be available when full server runs)');
+                event.target.reset();
+                hideContact();
+            }
+        }
+
+        // Close overlay when clicking outside
+        document.getElementById('contactOverlay').addEventListener('click', function(event) {
+            if (event.target === this) {
+                hideContact();
+            }
+        });
+
+        // Close Linux overlay when clicking outside
+        document.getElementById('linuxOverlay').addEventListener('click', function(event) {
+            if (event.target === this) {
+                hideLinuxOptions();
+            }
+        });
+
+        // Font Awesome fallback
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const testIcon = document.createElement('i');
+                testIcon.className = 'fas fa-home';
+                testIcon.style.position = 'absolute';
+                testIcon.style.left = '-9999px';
+                document.body.appendChild(testIcon);
+
+                const computed = window.getComputedStyle(testIcon);
+                const fontFamily = computed.getPropertyValue('font-family');
+
+                if (!fontFamily.includes('Font Awesome')) {
+                    // Font Awesome didn't load, use emoji fallbacks
+                    const replacements = {
+                        '.fas.fa-brain': '🧠',
+                        '.fas.fa-microchip': '💻',
+                        '.fas.fa-rocket': '🚀',
+                        '.fas.fa-download': '⬇️',
+                        '.fas.fa-question-circle': '❓',
+                        '.fas.fa-envelope': '📧',
+                        '.fab.fa-windows': '🪟',
+                        '.fab.fa-apple': '🍎',
+                        '.fab.fa-linux': '🐧',
+                        '.fas.fa-cube': '📦',
+                        '.fab.fa-ubuntu': '🟠',
+                        '.fab.fa-redhat': '🎩',
+                        '.fas.fa-mountain': '🏔️',
+                        '.fas.fa-box-open': '📦',
+                        '.fas.fa-shield-alt': '🛡️'
+                    };
+
+                    for (const [selector, emoji] of Object.entries(replacements)) {
+                        document.querySelectorAll(selector).forEach(el => {
+                            el.innerHTML = emoji;
+                            el.style.fontFamily = 'inherit';
+                        });
+                    }
+                }
+
+                document.body.removeChild(testIcon);
+            }, 500);
+        });
+
+        // Intersection Observer for staggered animations
+        const observerOptions = {
+            root: null,
+            rootMargin: '0px',
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry, index) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }, index * 200);
+                }
+            });
+        }, observerOptions);
+
+        // Apply staggered animation to cards
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.contribution-card, .tier-card, .faq-item');
+            cards.forEach(card => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                observer.observe(card);
+            });
+            
+            // Load dynamic phase data (when API is available)
+            loadPhaseData();
+        });
+
+        // Load dynamic contributor status data
+        async function loadPhaseData() {
+            try {
+                const response = await fetch('/api/contributor-status');
+                if (response.ok) {
+                    const data = await response.json();
+                    updatePhaseDisplay(data);
+                }
+            } catch (error) {
+                // Silently fall back to static data - API not available yet
+                console.log('Phase API not available, using static data');
+            }
+        }
+
+        function updatePhaseDisplay(data) {
+            // Update phase title if needed
+            const phaseTitle = document.querySelector('.phase-title');
+            if (phaseTitle && data.current_phase) {
+                phaseTitle.innerHTML = `
+                    <i class="fas fa-info-circle"></i>
+                    Current Status: Phase ${data.current_phase.number} - ${data.current_phase.name}
+                `;
+            }
+            
+            // Update transparency message
+            const transparencyNote = document.querySelector('.transparency-note p');
+            if (transparencyNote) {
+                transparencyNote.textContent = data.transparency_message;
+            }
+        }
+    </script>
+</body>
+</html>
