@@ -1,0 +1,401 @@
+> from ..database.models import Base, generate_uuid
+> from sqlalchemy.dialects.postgresql import UUID
+> from sqlalchemy.dialects.postgresql import JSONB as JSONBType
+> from datetime import datetime, timezone, timedelta
+> from sqlalchemy import Column, String, DateTime, Boolean, Text, Integer, ForeignKey
+> from sqlalchemy.orm import Session
+> from typing import Dict, List, Optional, Any
+> import hashlib
+> import redis
+> import secrets
+  
+> class APIKey(Base):
+>     """API Key model for provider authentication."""
+>     __tablename__ = "api_keys"
+  
+      # Primary key
+>     id = Column(UUID(as_uuid=False), primary_key=True, default=generate_uuid)
+  
+      # Foreign key
+>     provider_id = Column(
+>         UUID(as_uuid=False),
+>         ForeignKey("strategy_providers.id", ondelete="CASCADE"),
+>         nullable=False
+>     )
+  
+      # Key details
+>     key_hash = Column(String(128), nullable=False, unique=True, index=True)
+>     key_prefix = Column(String(20), nullable=False)  # sk_live_, sk_test_, etc.
+>     name = Column(String(100), nullable=False)
+  
+      # Permissions and scoping
+>     scopes = Column(JSONBType, nullable=False)  # List of scopes stored as JSON
+>     key_type = Column(String(20), nullable=False, default="production")  # production, test
+  
+      # Status and expiration
+>     is_active = Column(Boolean, default=True, nullable=False)
+>     expires_at = Column(DateTime(timezone=True), nullable=True)
+>     last_used_at = Column(DateTime(timezone=True), nullable=True)
+  
+      # Rate limiting
+>     rate_limit = Column(Integer, nullable=True)  # requests per minute
+  
+      # Metadata
+>     ip_whitelist = Column(JSONBType, nullable=True)  # List of IPs stored as JSON
+>     key_metadata = Column(Text, nullable=True)
+  
+      # Timestamps
+>     created_at = Column(
+>         DateTime(timezone=True),
+>         default=lambda: datetime.now(timezone.utc),
+>         nullable=False
+>     )
+>     updated_at = Column(
+>         DateTime(timezone=True),
+>         default=lambda: datetime.now(timezone.utc),
+>         nullable=False
+>     )
+  
+  
+> class APIKeyManager:
+>     """
+>     API Key Manager for handling provider API keys.
+      
+>     Handles API key generation, validation, revocation, and rate limiting
+>     with secure key storage and scoping.
+>     """
+  
+>     def __init__(self, db_session: Session, redis_client: Optional[redis.Redis] = None):
+>         """Initialize API key manager."""
+>         self.db = db_session
+>         self.redis_client = redis_client or self._create_redis_client()
+>         self.valid_scopes = {
+>             "read": "Read access to strategy data",
+>             "write_signals": "Write access to submit signals",
+>             "manage_strategies": "Manage own strategies",
+>             "view_analytics": "View performance analytics",
+>             "webhook_manage": "Manage webhook endpoints"
+>         }
+  
+>     def _create_redis_client(self) -> Optional[redis.Redis]:
+>         """Create Redis client for rate limiting."""
+>         try:
+>             return redis.Redis(host="localhost", port=6379, db=1, decode_responses=True)
+!         except Exception:
+!             return None
+  
+>     def generate_key(
+>         self,
+>         provider_id: str,
+>         name: str,
+>         scopes: List[str],
+>         key_type: str = "production",
+>         expires_at: Optional[datetime] = None,
+>         rate_limit: Optional[int] = None,
+>         ip_whitelist: Optional[List[str]] = None
+>     ) -> str:
+>         """
+>         Generate a new API key for a provider.
+  
+>         Args:
+>             provider_id: Provider ID
+>             name: Human-readable key name
+>             scopes: List of permission scopes
+>             key_type: 'production' or 'test'
+>             expires_at: Optional expiration datetime
+>             rate_limit: Requests per minute limit
+>             ip_whitelist: Optional list of allowed IPs
+  
+>         Returns:
+>             The generated API key string
+>         """
+          # Validate scopes
+!         invalid_scopes = [s for s in scopes if s not in self.valid_scopes]
+!         if invalid_scopes:
+!             raise ValueError(f"Invalid scopes: {invalid_scopes}")
+          # Generate key
+!         key_suffix = secrets.token_urlsafe(32)
+  
+          # Create key prefix based on type
+!         if key_type == "test":
+!             prefix = "sk_test_"
+!         else:
+!             prefix = "sk_live_"
+!         api_key = f"{prefix}{key_suffix}"
+  
+          # Hash the key for storage
+!         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+  
+          # Store in database
+!         api_key_record = APIKey(
+!             provider_id=provider_id,
+!             key_hash=key_hash,
+!             key_prefix=prefix,
+!             name=name,
+!             scopes=scopes,
+!             key_type=key_type,
+!             expires_at=expires_at,
+!             rate_limit=rate_limit,
+!             ip_whitelist=ip_whitelist or [],
+!             is_active=True)
+  
+!         self.db.add(api_key_record)
+!         self.db.commit()
+  
+!         return api_key
+  
+>     def validate_key(
+>         self, api_key: str, ip_address: Optional[str] = None) -> Optional[Dict[str, Any]]:
+>         """
+>         Validate an API key.
+  
+>         Args:
+>             api_key: API key string
+>             ip_address: Client IP address for whitelist check
+  
+>         Returns:
+>             Validation result with provider info and scopes
+>         """
+          # Hash the provided key
+>         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+  
+          # Query database
+>         key_record = (
+>             self.db.query(APIKey)
+>             .filter(APIKey.key_hash == key_hash, APIKey.is_active)
+>             .first())
+>         if not key_record:
+>             return None
+              
+          # Check expiration
+>         if key_record.expires_at:
+              # Ensure expires_at is timezone-aware for comparison
+!             expires_at = key_record.expires_at
+!             if expires_at.tzinfo is None:
+                  # If naive, assume UTC
+!                 expires_at = expires_at.replace(tzinfo=timezone.utc)
+!             if expires_at <= datetime.now(timezone.utc):
+!                 return None
+  
+          # Check IP whitelist
+>         if key_record.ip_whitelist and ip_address:
+!             if ip_address not in key_record.ip_whitelist:
+!                 return None
+  
+          # Update last used timestamp
+>         key_record.last_used_at = datetime.now(timezone.utc)
+>         self.db.commit()
+  
+>         return {
+>             "provider_id": key_record.provider_id,
+>             "scopes": key_record.scopes,
+>             "key_type": key_record.key_type,
+>             "rate_limit": key_record.rate_limit,
+>             "is_active": key_record.is_active,
+>             "name": key_record.name}
+  
+>     def validate_key_with_rate_limit(
+>         self, api_key: str, ip_address: Optional[str] = None) -> Optional[Dict[str, Any]]:
+>         """
+>         Validate API key with rate limiting check.
+  
+>         Args:
+>             api_key: API key string
+>             ip_address: Client IP address
+  
+>         Returns:
+>             Validation result or None if rate limited
+>         """
+          # First validate the key
+>         key_info = self.validate_key(api_key, ip_address)
+>         if not key_info:
+>             return None
+              
+          # Check rate limit if specified
+>         rate_limit = key_info.get("rate_limit")
+>         if rate_limit and self.redis_client:
+>             key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+>             rate_limit_key = f"rate_limit:{key_hash}"
+  
+              # Check current count
+>             current_count = self.redis_client.get(rate_limit_key)
+>             if current_count and int(current_count) >= rate_limit:
+>                 return {"rate_limited": True, **key_info}
+  
+              # Increment counter
+>             pipe = self.redis_client.pipeline()
+>             pipe.incr(rate_limit_key)
+>             pipe.expire(rate_limit_key, 60)  # 1 minute window
+>             pipe.execute()
+  
+>         return key_info
+  
+>     def revoke_key(self, api_key: str) -> bool:
+>         """
+>         Revoke an API key.
+  
+>         Args:
+>             api_key: API key to revoke
+  
+>         Returns:
+>             True if successfully revoked
+>         """
+!         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+  
+!         key_record = self.db.query(APIKey).filter(APIKey.key_hash == key_hash).first()
+!         if key_record:
+!             key_record.is_active = False
+!             key_record.updated_at = datetime.now(timezone.utc)
+!             self.db.commit()
+!             return True
+  
+!         return False
+  
+>     def list_keys(self, provider_id: str) -> List[Dict[str, Any]]:
+>         """
+>         List API keys for a provider.
+  
+>         Args:
+>             provider_id: Provider ID
+  
+>         Returns:
+>             List of API key information (without actual keys)
+>         """
+!         keys = (
+!             self.db.query(APIKey)
+!             .filter(APIKey.provider_id == provider_id)
+!             .order_by(APIKey.created_at.desc())
+!             .all())
+  
+!         result = []
+!         for key in keys:
+              # Mask the key for security
+!             masked_key = f"{key.key_prefix}{'*' * 20}...{key.key_hash[-8:]}"
+  
+!             result.append({
+!                 "id": key.id,
+!                 "name": key.name,
+!                 "masked_key": masked_key,
+!                 "scopes": key.scopes,
+!                 "key_type": key.key_type,
+!                 "is_active": key.is_active,
+!                 "expires_at": key.expires_at,
+!                 "last_used_at": key.last_used_at,
+!                 "created_at": key.created_at,
+!                 "rate_limit": key.rate_limit})
+  
+!         return result
+  
+>     def update_key(
+>         self,
+>         api_key: str,
+>         name: Optional[str] = None,
+>         scopes: Optional[List[str]] = None,
+>         expires_at: Optional[datetime] = None,
+>         rate_limit: Optional[int] = None,
+>         ip_whitelist: Optional[List[str]] = None) -> bool:
+>         """
+>         Update API key properties.
+  
+>         Args:
+>             api_key: API key to update
+>             name: New name
+>             scopes: New scopes
+>             expires_at: New expiration
+>             rate_limit: New rate limit
+>             ip_whitelist: New IP whitelist
+  
+>         Returns:
+>             True if successfully updated
+>         """
+!         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+  
+!         key_record = (
+!             self.db.query(APIKey)
+!             .filter(APIKey.key_hash == key_hash, APIKey.is_active)
+!             .first())
+!         if not key_record:
+!             return False
+              
+          # Update fields if provided
+!         if name is not None:
+!             key_record.name = name
+!         if scopes is not None:
+              # Validate scopes
+!             invalid_scopes = [s for s in scopes if s not in self.valid_scopes]
+!             if invalid_scopes:
+!                 raise ValueError(f"Invalid scopes: {invalid_scopes}")
+!             key_record.scopes = scopes
+!         if expires_at is not None:
+!             key_record.expires_at = expires_at
+!         if rate_limit is not None:
+!             key_record.rate_limit = rate_limit
+!         if ip_whitelist is not None:
+!             key_record.ip_whitelist = ip_whitelist
+  
+!         key_record.updated_at = datetime.now(timezone.utc)
+!         self.db.commit()
+  
+!         return True
+  
+>     def get_usage_stats(self, provider_id: str, days: int = 30) -> Dict[str, Any]:
+>         """
+>         Get API key usage statistics.
+  
+>         Args:
+>             provider_id: Provider ID
+>             days: Number of days to look back
+  
+>         Returns:
+>             Usage statistics
+>         """
+!         since_date = datetime.now(timezone.utc) - timedelta(days=days)
+  
+!         keys = (
+!             self.db.query(APIKey)
+!             .filter(APIKey.provider_id == provider_id, APIKey.created_at >= since_date)
+!             .all())
+  
+!         active_keys = [k for k in keys if k.is_active]
+!         recently_used = [
+!             k for k in keys if k.last_used_at and k.last_used_at >= since_date]
+  
+!         return {
+!             "total_keys": len(keys),
+!             "active_keys": len(active_keys),
+!             "recently_used_keys": len(recently_used),
+!             "key_types": {
+!                 "production": len([k for k in keys if k.key_type == "production"]),
+!                 "test": len([k for k in keys if k.key_type == "test"])},
+!             "most_used_scopes": self._get_most_used_scopes(keys)}
+  
+>     def _get_most_used_scopes(self, keys: List[APIKey]) -> Dict[str, int]:
+>         """Get most commonly used scopes."""
+!         scope_counts = {}
+!         for key in keys:
+!             for scope in key.scopes:
+!                 scope_counts[scope] = scope_counts.get(scope, 0) + 1
+!         return dict(sorted(scope_counts.items(), key=lambda x: x[1], reverse=True))
+  
+>     def cleanup_expired_keys(self) -> int:
+>         """
+>         Clean up expired API keys.
+  
+>         Returns:
+>             Number of keys cleaned up
+>         """
+!         now = datetime.now(timezone.utc)
+  
+!         expired_keys = (
+!             self.db.query(APIKey)
+!             .filter(APIKey.expires_at < now, APIKey.is_active)
+!             .all())
+  
+!         count = 0
+!         for key in expired_keys:
+!             key.is_active = False
+!             key.updated_at = now
+!             count += 1
+  
+!         self.db.commit()
+!         return count

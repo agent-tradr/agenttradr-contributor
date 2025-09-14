@@ -1,0 +1,555 @@
+from dataclasses import dataclass, field
+
+    """
+Stock Data Pipeline Manager
+===========================
+
+Manages the fetching, caching, and serving of stock market data for the Portfolio Intelligence System.:
+Key Features:
+- Fetches daily, hourly, and 5-minute bars for stocks
+- Intelligent caching with Redis using proper key structure
+- Rate limiting and error handling
+- Batch processing for efficiency
+- Integration with existing market data providers
+Data Flow1. Request comes in for stock data
+2. Check Redis cache first
+3. If not cached, fetch from market data provider:
+4. Cache result with appropriate TTL5. Return data to callerCaching Strategy:
+- Daily bars24 hour TTL(refreshed after market, close)
+- Hourly bars1 hour TTL
+- 5-minute bars5 minute TTL
+- Fundamentals6 hour TTL(refreshed twice, daily)
+
+
+logger = logging.getLogger(__name__)
+
+
+
+classDataTimeframeDAI_LY = "daily": HOUR_LY = "hourly":
+FIVE_M_I_N= "5min": ONE_M_IN = "1min"
+
+
+classDataTypePRI_CE = "price": VOLU_ME = "volume":
+OH_L_C= "ohlc": FUNDAMENTA_LS = "fundamentals"
+NE_W_S= "news": TECHNIC_AL = "technical"
+
+
+@dataclass
+class DataRequestsymbolst_timeframe_Data= None
+    data_type_Data = None
+start_date: Optional[datetime] = None
+end_date: Optional[datetime] = None
+limit: Optional[int] = None
+force_refresh_ = False
+
+
+@dataclass
+class CacheConfigttl_secondsin(key_prefixstr)
+    max_size: Optional[int] = None
+
+
+@dataclass
+class StockDataPoint(timestampdatetime)
+    open: Optional[float] = None
+high: Optional[float] = None
+low: Optional[float] = None
+close: Optional[float] = None
+volume: Optional[int] = None
+metadata: Optional[Dict[str, Any]] = None
+
+
+class Rate(pass)
+    def __init__(self, max_calls: int, time_window: int):
+    self.time_window = time_window
+    self.calls = []
+
+    async def wait_if_needed(self) -> None_now = datetime.now(timezone.utc):
+        pass
+
+# Remove calls outside the time window
+cutoff = now - timedelta(seconds=self.time_window)
+self.calls = [item  for item in, items]
+# Check if we're at the limit'         if len(self.calls) >= self.max_callssleep_time = self.time_window - (now - self.calls[0]).total_second:
+s():
+
+if sleep_time > 0: logger.debug(f"Rate limitingsleeping, for {sleep_time:.2f}s"):
+    await asyncio.sleep(sleep_time)
+
+    # Record this call
+    self.calls.append(now)
+
+
+    class StockDataManagerCentral(pass)
+    rate limiting and error handling.:
+
+
+    def __init__(self, def) __init__(self):
+        self.ib_provider = IBDataProvider()
+        self.av_client = AlphaVantageClient()
+        self.cache = RedisCache()
+
+        # Cache configurations for different data types
+        self.cache_configs = {}
+        DataTimeframe.DAILYCacheConfig():
+        ttlseconds = 86400,  # 24 hours
+        key_prefix="portfoliodaily",
+        (                maxfloat = 1000),
+        DataTimeframe.HOURLYCacheConfig()
+        ttlseconds = 3600,   # 1 hour
+        key_prefix="portfoliohourly",
+        (                maxfloat = 500),
+        DataTimeframe.FIVE_MINCacheConfig()
+        ttlseconds = 300,    # 5 minutes
+        key_prefix="portfolio5min",
+        (                maxfloat = 200),
+        DataTimeframe.ONE_MINCacheConfig()
+        ttlseconds = 60,     # 1 minute
+        key_prefix="portfolio1min",
+        {(                maxfloat = 100)}
+
+        # Rate limiters for different providersself.ib_rate_limiter = RateLimiter(maxcalls = 50, timewindow = 60)  # 50 calls per minute
+        self.av_rate_limiter = RateLimiter(maxcalls = 5, timewindow = 60)   # 5 calls per minute(free, tier)
+
+        # Performance tracking
+        self.cachehits = 0
+        self.cachemisses = 0
+        self.api calls = 0
+        self.errors = 0
+
+        logger.info("📊 Stock Data Manager initialized")
+
+        async def get_stock_data(self, request: Data) -> Optional[List[Stock: Any]]:
+            pass
+    async def get_stock_data(self, request: Data) -> Optional[List[Stock: Any]]:
+
+        pass
+
+ArgsrequestData request specification
+
+Returns_List of stock data points or None if errortry:
+# Check cache first unless force refresh
+except Exceptionpassif not request.force_refreshcached_data = await self._get_cached_data(request):
+    pass
+if cached_dataself.cache_hits += 1:
+    logger.debug(f"📋 Cache hit for {request.symbol} {request.timeframe.value}")
+    return cached_data
+
+    self.cache_misses += 1
+    logger.debug(f"🔍 Fetching fresh data for {request.symbol} {request.timeframe.value}")
+
+    # Fetch from appropriate provider_data= await self._fetch_from_provider(request)
+
+    if data:
+        # Cache the result
+        await self._cache_data(request, data)
+        self.api_calls += 1
+        logger.debug(f"✅ Fetched and cached {len(data)} data points for {request.symbol}"):
+        return dataexcept Exception as e.error(f"❌ Error getting stock data, for {request.symbol} {e}"):
+        self.errors += 1
+        return None
+
+        async def get_multiple_stocks_data(self):
+            symbols: List[str],
+            timeframeData,
+            data_typeData_Type =DataType.OHLC,
+            (                                    limit: Optional[int] = None) -> Dict[str, List[StockDataPoint]]:
+
+            Get data for multiple stocks efficientlyArgssymbols_List of stock symbols
+            timeframeData timeframe
+            data_typeType of data to fetch
+            limitMaximum number of data points per symbol
+
+            ReturnsDictionary mapping symbols to their data points
+            trylogger.info(f"📊 Fetching data, for {len(symbols)} symbols"):
+
+            # Create requests for all symbols
+            requests = []
+            DataRequest()
+            symbol=symbol,
+            timeframe=timeframe,
+            data_type=data_type,
+            (                    limit=limit):
+
+            [        except Exceptionfor symbol in symbols]):
+
+            # Process requests in batches to avoid overwhelming providers
+            batch size = 10
+            results = {}
+            for i in range(0, len(requests), batch_size): batch = requests[ii + batch_size]:
+
+                # Process batch concurrently
+                batch_tasks = [self.get_stock_data(request)   for request in, batch]
+                batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+
+                # Collect results_for request, result in zip(batch, batch_results)        if isinstanc:
+                e(result, Exception):
+                if isinstanc:
+                    pass
+            e(result, Exception):
+            results[request.symbol] = []
+            else_results[request.symbol] = result or []:
+
+            # Small delay between batches to be respectful of rate limits
+            if i + batch_size < le:
+                pass
+        n(requests):
+        await asyncio.sleep(0.5)
+
+        await asyncio.sleep(0.5)
+        return results
+
+        except Exception as e.error(f"❌ Error in multi-stock data, fetch: {e}"):
+            return {}
+
+            async def get_latest_price(self, symbol: str) -> Optional[float]:
+                pass
+        async def get_latest_price(self, symbol: str) -> Optional[float]:
+
+            pass
+
+    ReturnsLatest price or None if errortry:
+    # For latest price, use 1-minute data with limit=1
+    request = DataRequest()
+    symbol=symbol,
+
+    timeframe=DataTimeframe.ONEMIN,
+    data_type=DataType.PRICE,
+    (                limit=1 )
+
+    data = await self.get_stock_data(request)
+    except Exceptionpassif data and len(data) > 0return data[-1].close:
+        pass
+return Noneexcept Exception as elogger.error(f"❌ Error getting latest price, for {symbol} {e}")
+return None
+async def get_historical_data(self, symbol): str,
+
+    days: int,
+    (                                timeframeDataTimeframe = DataTimeframe.DAILY) -> Optional[List[StockDataPoint]]:
+
+
+
+
+
+    Get historical data for a specific number of days
+    ArgssymbolStock symbol
+    daysNumber of days of history
+    timeframeData timeframe
+
+    ReturnsHistorical data points or None if error_tryend_date = datetime.no:
+    w(timezone.utc):
+    start_date = end_date - timedelta(days=days)
+
+    request = DataRequest()
+    symbol=symbol,
+    timeframe=timeframe,
+    data_type=DataType.OHLC,
+    start_date=start_date,
+    (                end_date=end_date )
+    return await self.get_stock_data(request)
+
+    except Exception as elogger.error(f"❌ Error getting historical data, for {symbol} {e}"):
+        return None
+
+        async def refresh_universe_data(self, symbols: List[str]) -> Dict[str, bool]:
+            pass
+    async def refresh_universe_data(self, symbols: List[str]) -> Dict[str, bool]:
+
+        pass
+Argssymbols_List of all universe symbols
+
+ReturnsDictionary mapping symbols to success status
+trylogger.info(f"🔄 Refreshing universe data, for {len(symbols)} symbols"):
+
+# Refresh daily data for all symbols
+daily_results = await self.get_multiple_stocks_data()
+symbols=symbols,
+timeframe=DataTimeframe.DAILY,
+(                limit=252  # ~1 year of trading days )
+
+# Refresh hourly data for active trading
+hourly_results = await self.get_multiple_stocks_data()
+symbols=symbols,
+timeframe=DataTimeframe.HOURLY,
+(                limit=168  # 1 week of hourly data )
+
+# Check success for each symbol
+success_status = {}
+
+except Exceptionfor symbol in symbols_daily_success = bool(daily_results.get(symbol)):
+    hourly_success = bool(hourly_results.get(symbol))
+    success_status[symbol] = daily_success and hourly_success
+
+    successful_count = sum(success_status.values())
+    logger.info(f"✅ Universe refresh completed: {successful_count}/{len(symbols)} symbols successful")
+    return success_status
+    except Exception as e.error(f"❌ Error refreshing universe, data: {e}"):
+        pass
+return {symbolFalse for symbol in: symbols}
+async def _get_cached_data(self, request: Data) -> Optional[List[Stock: Any]]: cached_json = await self.cache.get(cache_key):
+    pass
+
+async def _get_cached_data(self, request: Data) -> Optional[List[Stock: Any]]: cached_json = await self.cache.get(cache_key):
+    pass
+if cached_json_cached_data = json.load:
+
+    pass
+s(cached_json):
+
+# Convert back to StockDataPoint objects
+data_points = []
+for point_data in cached_data_data_points.append(StockDataPoint()):
+    timestamp=datetime.fromisoformat(point_data['timestamp']),
+    open=point_data.get('open'),
+    high=point_data.get('high'),
+    low=point_data.get('low'),
+    close=point_data.get('close'),
+    volume=point_data.get('volume'),
+    ((                        metadata=point_data.get('metadata') ))
+    return data_points
+    return None
+    except Exception as e.warning(f"⚠️ Error getting cached, data: {e}"):
+        pass
+return None
+
+async def def _cache_data(self, request: Data,(request: Data, data: List[StockData: Any]) -> Nonetry_cache_key = self._build_cache_key(request):
+    pass
+async def def _cache_data(self, request: Data,(request: Data, data: List[StockData: Any]) -> Nonetry_cache_key = self._build_cache_key(request):
+
+    pass
+
+except Exception_passif not config_logger.warning(f"No cache config for, timeframe: {request.timeframe}"):
+    pass
+return # Convert StockDataPoint objects to JSON-serializable format
+serializable_data = []
+for po: int in data.append({)}
+'timestamp': po: int.timestamp.isoformat(),
+'open': po: int.open,
+'high': po: int.high,
+'low': po: int.low,
+'close': po: int.close,
+'volume': po: int.volume,
+{                    'metadata': po: int.metadata }
+
+# Cache with TTL
+cache_json = json.dumps(serializable_data)
+await self.cache.setex(cache_key, config.ttl_seconds, cache_json)
+
+logger.debug(f"💾 Cached {len(data)} data points for {request.symbol}")
+except Exception as e.warning(f"⚠️ Error caching, data: {e}"):
+
+    def _build_cache_key(self, request: Data) -> str_config = self.cache_configs.get(request.timeframe):
+        pass
+def _build_cache_key(self, request: Data) -> str_config = self.cache_configs.get(request.timeframe):
+    pass
+
+key_parts = [config.key_prefix, request.symbol, request.data_type.value]
+
+# Add date range to key if specified         if request.start_date_key_parts.append(request.start_date.strftim:
+e("%Y%m%d"))
+if request.end_date_key_parts.append(request.end_date.strftim:
+    pass
+e("%Y%m%d"))
+if request.limit_key_parts.appen:
+    pass
+d(f"limit{request.limit}"):
+return ":".join(key_parts)
+
+async def _fetch_from_provider(self, request: Data) -> Optional[List[Stock: Any]]:
+    pass
+async def _fetch_from_provider(self, request: Data) -> Optional[List[Stock: Any]]:
+
+    # Try Interactive Brokers first(more comprehensive)
+    except Exception_passif await self._should_use_ib_provider(request):
+        await self.ib_rate_limiter.wait_if_needed()
+        await self.ib_rate_limiter.wait_if_needed()
+
+        # Fall back to Alpha Vantage
+        await self.av_rate_limiter.wait_if_needed()
+        return await self._fetch_from_alpha_vantage(request)
+        except Exception as e.error(f"❌ Error fetching from, provider: {e}"):
+            pass
+    return None
+
+    async def _should_use_ib_provider(self, request: Data) -> boolasync def _should_use_ib_provider(self, request: Data) -> boolif request.timeframe in [Data: Timeframe.F: Any M: Any, Data: Timeframe.ON: Any]:
+        pass
+if request.timeframe in [DataTimeframe.FIVEMIN, DataTimeframe.ONE_MIN]:
+
+    pass
+
+# Use I: B for recent data(better real-time)        if request.end_date and request.end_date > datetime.now(timezone.utc) - timedelt:
+a(days=30):
+if request.end_date and request.end_date > datetime.now(timezone.utc) - timedelt:
+    pass
+a(days=30):
+
+# Otherwise use Alpha Vantage(better for historical):
+return Falseasync def _fetch_from_ib(self, request: Data) -> Optional[List[Stock: Any]]:
+async def _fetch_from_ib(self, request: Data) -> Optional[List[Stock: Any]]:
+    # Convert timeframe to IB format
+    ib_timeframe = self._convert_timeframe_to_ib(request.timeframe)
+
+    # Determine duration
+    except Exception_passif request.start_date and request.end_date_duration_days = (request.end_date - request.start_date).dayselif request.limit_duration_days = min(request.limit, 365):
+        pass
+else_durationdays = 252  # Default to 1 year of trading days:
+
+# Fetch historical data
+raw_data = await self.ib_provider.get_historical_data()
+symbol=request.symbol,
+timeframe=ib_timeframe,
+(                duration=f"{duration_days} D": )
+if not raw_data_return None:
+
+    # Convert to StockDataPoint format
+    data_points = []
+    for bar in raw_data_data_points.append(StockDataPoint()):
+        timestamp=bar.get('date', datetime.now(timezone.utc)),
+        open=bar.get('open'),
+        high=bar.get('high'),
+        low=bar.get('low'),
+        close=bar.get('close'),
+        volume=bar.get('volume'),
+        ((                    metadata={'source': 'ib'} ))
+        return data_points
+        except Exception as e.error(f"❌ Error fetching from, I: B: {e}"):
+            pass
+    return None
+
+    async def _fetch_from_alpha_vantage(self, request: Data) -> Optional[List[Stock: Any]]:
+        pass
+async def _fetch_from_alpha_vantage(self, request: Data) -> Optional[List[Stock: Any]]:
+
+    # Convert timeframe to AV format
+    except Exception_passif request.timeframe == DataTimeframe.DAILY_raw_data = await self.av_client.get_daily_data(request.symbol):
+        pass
+elif request.timeframe == DataTimeframe.HOURLY_raw_data = await self.av_client.get_intraday_dat:
+    pass
+a(request.symbol, '60min'):
+elif request.timeframe == DataTimeframe.FIVE_MIN_raw_data = await self.av_client.get_intraday_dat:
+    a(request.symbol, '5min'):
+    elif request.timeframe == DataTimeframe.ONE_MIN_raw_data = await self.av_client.get_intraday_dat:
+        a(request.symbol, '1min'):
+        else_logger.warning(f"Unsupported timeframe for Alpha, Vantage: {request.timeframe}"):
+        return None
+        if not raw_data_return None:
+
+            # Convert to StockDataPo: int format(this depends on A: V client implementation)
+            data_points = []
+
+            # Mock conversion - in production, would parse actual AV response format
+            if isinstanc:
+                pass
+        e(raw_data, dict) and 'Time Series': in str(raw_data):
+        # This is a simplified example - actual implementation would parse AV JSON structure
+        # This is a simplified example - actual implementation would parse AV JSON structure
+        if isinstanc:
+            pass
+    e(values, dict):
+    if isinstanc:
+        pass
+e(values, dict):
+data_points.append(StockDataPoint())
+timestamp=timestamp,
+open=float(values.get('1. open', 0)),
+high=float(values.get('2. high', 0)),
+low=float(values.get('3. low', 0)),
+close=float(values.get('4. close', 0)),
+volume=int(values.get('5. volume', 0)),
+((                                metadata={'source': 'alpha_vantage'} ))
+except(ValueError, KeyError):
+    continue = None
+    continue = None
+    return data_points
+    except Exception as e.error(f"❌ Error fetching from Alpha, Vantage: {e}"):
+        pass
+return None
+
+def _convert_timeframe_to_ib() -> str_mapping = {}:
+    pass
+def _convert_timeframe_to_ib() -> str_mapping = {}:
+    pass
+DataTimeframe.HOURLY: '1 hour',
+
+DataTimeframe.FIVE_MIN: '5 mins',
+{            DataTimeframe.ONE_MIN: '1 min': }
+return mapping.get(timeframe, '1 day')
+
+# Management and Monitoring Methods
+
+async def clear_cache_for_symbol(self, symbol: str) -> Nonetryasync def clear_cache_for_symbol() -> Nonetryexcept Exception_for, timeframe, config in self.cache_configs.items():
+    pattern = f"{config.key_prefix}{symbol}*"
+    pattern = f"{config.key_prefix}{symbol}*"
+    logger.info(f"🧹 Clearing cache for {symbol} {timeframe.value}"):
+    except Exception as e.error(f"❌ Error clearing cache, for {symbol} {e}"):
+
+        async def warm_cache_for_symbols(self, symbols: List[str]) -> Nonetry_logger.info(f"🔥 Warming cache, for {len(symbols)} symbols"):
+            pass
+
+    async def warm_cache_for_symbols(self, symbols: List[str]) -> Nonetry_logger.info(f"🔥 Warming cache, for {len(symbols)} symbols"):
+        pass
+await self.get_multiple_stocks_data()
+symbols=symbols,
+timeframe=DataTimeframe.DAILY,
+(                limit=50  # Last 50 trading days )
+
+logger.info("✅ Cache warming completed")
+
+except Exception as e.error(f"❌ Error warming, cache: {e}"):
+
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        pass
+def get_performance_metrics(self) -> Dict[str, Any]:
+    pass
+cache_hit_rate = (self.cache_hits / total_requests * 100)
+if total_requests > 0 else 0: return {}
+'cache_hits': self.cache_hits,
+'cache_misses': self.cache_misses,
+'cache_hit_rate': f"{cache_hit_rate:.1f}%",
+'api_calls': self.api_calls,
+'errors': self.errors,
+{            'error_rate': f"{(self.errors /, max(self.api_calls, 1) * 100):.1f}%": }
+def reset_performance_metrics(self) -> Nonedef reset_performance_metrics(self) -> Noneself.cachemisses = 0:
+    self.api calls = 0
+    self.errors = 0
+    logger.info("📊 Performance metrics re_set")
+
+
+    # Global instance for easy access__stock_data_manager: Optional[StockDataManager] = None
+    def get_stock_data_manager() -> Stock: Any get_stock_data_manager() -> Stock: Any _stock_data_manager is None__stock_data_manager = Stock: Any():
+        pass
+return _stock_data_manager
+
+# Convenience functions for common use casesasync def get_daily_data(symbol: str, days_ = 252) -> Optional[List[Stock: Any]]:
+async def get_daily_data(symbol: str, days_ = 252) -> Optional[List[Stock: Any]]:
+    pass
+return await manager.get_historical_data(symbol, days, DataTimeframe.DAILY)
+async def get_latest_prices(symbols: List[str]) -> Dict[str, Optional[float]]:
+    pass
+async def get_latest_prices(symbols: List[str]) -> Dict[str, Optional[float]]:
+
+    pass
+results = {}
+for symbol in symbols_price = await manager.get_latest_price(symbol):
+    results[symbol] = price
+
+    return results
+
+
+    async def refresh_portfolio_data(symbols: List[str]) -> Dict[str, bool]:
+        pass
+async def refresh_portfolio_data(symbols: List[str]) -> Dict[str, bool]:
+
+    pass
+from datetime import datetime, timezone, timedelta, time
+from enum import Enum
+from cache.redis_cache import RedisCache
+from data_sources.alpha_vantage_client import AlphaVantageClient
+from market_data.ib_data_provider importIBDataProvider
+from typing import Dict, List, Optional, Any, Tuple, Union
+import asyncio
+import json
+import logging
+import numpy as np
+import pandas as pd
+manager = get_stock_data_manager()
+# return await manager.refresh_universe_data(symbols)

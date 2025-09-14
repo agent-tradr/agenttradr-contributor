@@ -1,0 +1,233 @@
+> """
+> TICKET-013: Fixed Database Query Optimization System
+> Provides query caching, connection pooling, and performance monitoring.
+> """
+  
+> import json
+> import hashlib
+> import logging
+> from typing import Dict, Any, Optional, List
+> import redis
+> from contextlib import contextmanager
+  
+> logger = logging.getLogger(__name__)
+  
+  
+> class QueryCache:
+>     """Redis-based query result cache"""
+  
+>     def __init__(self, redis_url: str = "redis://localhost:6379/0"):
+>         try:
+>             self.redis_client = redis.from_url(redis_url, decode_responses=True)
+!         except Exception as e:
+!             logger.warning(f"Redis connection failed: {e}")
+!             self.redis_client = None
+  
+>         self.default_ttl = 300  # 5 minutes
+>         self.cache_stats = {"hits": 0, "misses": 0, "invalidations": 0}
+  
+>     def _make_cache_key(self, query: str, params: Dict[str, Any] = None) -> str:
+>         """Create cache key from query and parameters"""
+!         key_data = f"{query}_{json.dumps(params or {}, sort_keys=True)}"
+!         return f"query_cache:{hashlib.sha256(key_data.encode()).hexdigest()}"
+  
+>     async def get(self, query: str, params: Dict[str, Any] = None) -> Optional[Any]:
+>         """Get cached query result"""
+!         if not self.redis_client:
+!             return None
+  
+!         try:
+!             cache_key = self._make_cache_key(query, params)
+!             result = self.redis_client.get(cache_key)
+!             if result:
+!                 self.cache_stats["hits"] += 1
+!                 return json.loads(result)
+!             else:
+!                 self.cache_stats["misses"] += 1
+!                 return None
+!         except Exception as e:
+!             logger.warning(f"Cache get error: {e}")
+!             self.cache_stats["misses"] += 1
+!             return None
+  
+>     async def set(
+>         self, query: str, result: Any, params: Dict[str, Any] = None, ttl: int = None
+>     ) -> None:
+>         """Cache query result"""
+!         if not self.redis_client:
+!             return
+  
+!         try:
+!             cache_key = self._make_cache_key(query, params)
+!             self.redis_client.setex(
+!                 cache_key, ttl or self.default_ttl, json.dumps(result, default=str)
+!             )
+!         except Exception as e:
+!             logger.warning(f"Cache set error: {e}")
+  
+>     async def invalidate_pattern(self, pattern: str) -> None:
+>         """Invalidate all keys matching pattern"""
+!         if not self.redis_client:
+!             return
+  
+!         try:
+!             keys = self.redis_client.keys(f"query_cache:*{pattern}*")
+!             if keys:
+!                 self.redis_client.delete(*keys)
+!                 self.cache_stats["invalidations"] += len(keys)
+!         except Exception as e:
+!             logger.warning(f"Cache invalidation error: {e}")
+  
+>     def get_stats(self) -> Dict[str, Any]:
+>         """Get cache statistics"""
+!         return {
+!             **self.cache_stats,
+!             "hit_rate": (
+!                 self.cache_stats["hits"]
+!                 / max(1, self.cache_stats["hits"] + self.cache_stats["misses"])
+!             )
+!             * 100,
+!         }
+  
+  
+> class ConnectionPool:
+>     """Database connection pool manager"""
+  
+>     def __init__(self, database_url: str, pool_size: int = 10):
+>         self.database_url = database_url
+>         self.pool_size = pool_size
+>         self.active_connections = 0
+>         self.pool_stats = {
+>             "total_connections": 0,
+>             "active_connections": 0,
+>             "peak_connections": 0,
+>             "connection_errors": 0,
+>         }
+  
+>     @contextmanager
+>     def get_connection(self):
+>         """Get connection from pool"""
+>         try:
+              # Mock connection for now - in production would use SQLAlchemy pool
+>             self.active_connections += 1
+>             self.pool_stats["active_connections"] = self.active_connections
+>             self.pool_stats["total_connections"] += 1
+  
+>             if self.active_connections > self.pool_stats["peak_connections"]:
+>                 self.pool_stats["peak_connections"] = self.active_connections
+  
+>             yield {"connection": "mock_connection", "active": True}
+>         except Exception as e:
+>             logger.error(f"Connection error: {e}")
+>             self.pool_stats["connection_errors"] += 1
+>             raise
+>         finally:
+>             self.active_connections -= 1
+>             self.pool_stats["active_connections"] = self.active_connections
+  
+>     def get_pool_stats(self) -> Dict[str, Any]:
+>         """Get pool statistics"""
+>         return self.pool_stats.copy()
+  
+  
+> class QueryOptimizer:
+>     """Query optimization and monitoring"""
+  
+>     def __init__(self):
+>         self.query_stats = {}
+>         self.slow_query_threshold = 1.0  # seconds
+  
+>     def record_query(self, query: str, execution_time: float, rows_affected: int = 0):
+>         """Record query execution statistics"""
+!         if query not in self.query_stats:
+!             self.query_stats[query] = {
+!                 "count": 0,
+!                 "total_time": 0.0,
+!                 "avg_time": 0.0,
+!                 "max_time": 0.0,
+!                 "min_time": float("inf"),
+!                 "rows_affected": 0,
+!                 "slow_queries": 0,
+!             }
+!         stats = self.query_stats[query]
+!         stats["count"] += 1
+!         stats["total_time"] += execution_time
+!         stats["avg_time"] = stats["total_time"] / stats["count"]
+!         stats["max_time"] = max(stats["max_time"], execution_time)
+!         stats["min_time"] = min(stats["min_time"], execution_time)
+!         stats["rows_affected"] += rows_affected
+  
+!         if execution_time > self.slow_query_threshold:
+!             stats["slow_queries"] += 1
+!             logger.warning(
+!                 f"Slow query detected: {execution_time:.2f}s - {query[:100]}..."
+!             )
+  
+>     def get_slow_queries(self) -> List[Dict[str, Any]]:
+>         """Get queries that exceed the slow query threshold"""
+!         slow_queries = []
+!         for query, stats in self.query_stats.items():
+!             if stats["slow_queries"] > 0:
+!                 slow_queries.append(
+!                     {
+!                         "query": query[:200] + "..." if len(query) > 200 else query,
+!                         "avg_time": stats["avg_time"],
+!                         "max_time": stats["max_time"],
+!                         "slow_count": stats["slow_queries"],
+!                         "total_count": stats["count"],
+!                     }
+!                 )
+  
+!         return sorted(slow_queries, key=lambda x: x["avg_time"], reverse=True)
+  
+>     def get_query_stats(self) -> Dict[str, Any]:
+>         """Get overall query statistics"""
+!         if not self.query_stats:
+!             return {"total_queries": 0, "avg_time": 0, "slow_queries": 0}
+!         total_queries = sum(stats["count"] for stats in self.query_stats.values())
+!         total_time = sum(stats["total_time"] for stats in self.query_stats.values())
+!         slow_queries = sum(stats["slow_queries"] for stats in self.query_stats.values())
+  
+!         return {
+!             "total_queries": total_queries,
+!             "avg_time": total_time / total_queries if total_queries > 0 else 0,
+!             "slow_queries": slow_queries,
+!             "unique_queries": len(self.query_stats),
+!         }
+  
+  
+  # Global instances
+> query_cache = QueryCache()
+> connection_pool = None  # Initialize with actual database URL
+> query_optimizer = QueryOptimizer()
+  
+  
+> def get_query_cache() -> QueryCache:
+>     """Get the global query cache instance"""
+!     return query_cache
+  
+  
+> def get_connection_pool() -> Optional[ConnectionPool]:
+>     """Get the global connection pool instance"""
+!     return connection_pool
+  
+  
+> def get_query_optimizer() -> QueryOptimizer:
+>     """Get the global query optimizer instance"""
+!     return query_optimizer
+  
+  
+> def initialize_optimization_system(database_url: str, redis_url: str = None):
+>     """Initialize the database optimization system"""
+>     global connection_pool, query_cache
+  
+!     try:
+!         connection_pool = ConnectionPool(database_url)
+!         if redis_url:
+!             query_cache = QueryCache(redis_url)
+  
+!         logger.info("Database optimization system initialized")
+!         return True
+!     except Exception as e:
+!         logger.error(f"Failed to initialize optimization system: {e}")
+!         return False

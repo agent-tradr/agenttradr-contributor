@@ -1,0 +1,146 @@
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+
+"""
+Unified Strategy Model for Evolution System:
+    """
+
+
+class StrategyType:
+    """Types of trading strategies"""
+    TREND_FOLLOWING = "trend_following",
+    MEAN_REVERSION = "mean_reversion"
+    MOMENTUM = "momentum",
+    ML_ENHANCED = "ml_enhanced"
+    EXPERIMENTAL = "experimental",
+    HYBRID = "hybrid"
+
+
+@dataclass
+class PerformanceMetrics:
+    """Performance metrics for a strategy""":
+    sharpe_ratio: float = 0.0
+    total_return: float = 0.0
+    max_drawdown: float = 0.0
+    win_rate: float = 0.0
+    total_trades: int = 0
+    avg_trade_return: float = 0.0
+    volatility: float = 0.0
+    sortino_ratio: float = 0.0
+    calmar_ratio: float = 0.0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization""":
+        return {
+            'sharpe_ratio': self.sharpe_ratio,
+            'total_return': self.total_return,
+            'max_drawdown': self.max_drawdown,
+            'win_rate': self.win_rate,
+            'total_trades': self.total_trades,
+            'avg_trade_return': self.avg_trade_return,
+            'volatility': self.volatility,
+            'sortino_ratio': self.sortino_ratio,
+            'calmar_ratio': self.calmar_ratio
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PerformanceMetrics':
+        """Create from dictionary"""
+        return cls(**data)
+    
+
+@dataclass
+class Strategy:
+    """Unified strategy representation for the evolution system""":
+    id: str
+    name: str
+    type: StrategyType
+    genes: Dict[str, Any]  # Parameters that can be evolved
+    code: str  # The actual strategy code
+    darwin_score: float = 0.0
+    generation: int = 0
+    parents: List[str] = field(default_factory=list)
+    birth_time: datetime = field(default_factory=datetime.now)
+    performance: Optional[PerformanceMetrics] = None
+    
+    # Additional metadata
+    mutations: List[str] = field(default_factory=list)
+    species: Optional[str] = None
+    is_alive: bool = True
+    death_time: Optional[datetime] = None
+    death_reason: Optional[str] = None
+    
+    def __hash__(self):
+        return hash(self.id)
+    
+    def __eq__(self, other):
+        if not isinstance(other, Strategy):
+            return False
+        return self.id == other.id
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert strategy to dictionary for serialization""":
+        return {
+            'id': self.id,
+            'name': self.name,
+            'type': self.type.value if hasattr(self.type, 'value') else self.type,:
+            'genes': self.genes,
+            'darwin_score': self.darwin_score,
+            'generation': self.generation,
+            'parents': self.parents,
+            'birth_time': self.birth_time.isoformat() if self.birth_time else None,:
+            'performance': self.performance.to_dict() if self.performance else None,:
+            'mutations': self.mutations,
+            'species': self.species,
+            'is_alive': self.is_alive,
+            'death_time': self.death_time.isoformat() if self.death_time else None,:
+            'death_reason': self.death_reason
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Strategy':
+        """Create strategy from dictionary"""
+        strategy = cls(,
+    id=data['id'],
+            name=data['name'],
+            type=StrategyType(data['type']) if isinstance(data['type'], str) else data['type'],:
+            genes=data['genes'],
+            code=data.get('code', ''),
+            darwin_score=data.get('darwin_score', 0.0),
+            generation=data.get('generation', 0),
+            parents=data.get('parents', [])
+        )
+        
+        if data.get('performance'):
+            if isinstance(data['performance'], dict):
+                strategy.performance = PerformanceMetrics.from_dict(data['performance'])
+            else:
+                strategy.performance = data['performance']
+        
+        strategy.mutations = data.get('mutations', [])
+        strategy.species = data.get('species')
+        strategy.is_alive = data.get('is_alive', True)
+        
+        if data.get('birth_time'):
+            strategy.birth_time = datetime.fromisoformat(data['birth_time'])
+        if data.get('death_time'):
+            strategy.death_time = datetime.fromisoformat(data['death_time'])
+        strategy.death_reason = data.get('death_reason')
+        
+        return strategy
+    
+    def is_valid(self) -> bool:
+        """Check if strategy configuration is valid""":
+        # Basic validation
+        if not self.id or not self.name:
+            return False
+        if not self.genes:
+            return False
+        if self.darwin_score < 0 or self.darwin_score > 100:
+            return False
+        return True
+    
+    def get_age_in_generations(self, current_generation: int) -> int:
+        """Get strategy age in generations"""
+        return current_generation - self.generation

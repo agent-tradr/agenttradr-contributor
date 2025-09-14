@@ -198,6 +198,8 @@
             width: auto;
             filter: drop-shadow(0 0 8px rgba(198, 160, 246, 0.2));
             animation: logoGlow 4s ease-in-out infinite alternate;
+            display: block;
+            max-width: 100%;
         }
 
         @keyframes logoGlow {
@@ -485,6 +487,101 @@
             color: var(--ctp-sky);
         }
 
+        /* Early Contributor Advantage Section */
+        .early-advantage-section {
+            background: linear-gradient(135deg, var(--ctp-crust) 0%, var(--ctp-surface0) 100%);
+            border: 1px solid var(--ctp-mauve);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .early-advantage-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, 
+                rgba(198, 160, 246, 0.05) 0%, 
+                rgba(138, 173, 244, 0.05) 100%);
+            pointer-events: none;
+        }
+
+        .advantage-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--ctp-text);
+            margin-bottom: var(--spacing-lg);
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .advantage-card {
+            background: var(--ctp-surface0);
+            border: 1px solid var(--ctp-surface2);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-sm);
+            position: relative;
+            z-index: 1;
+        }
+
+        .advantage-card.highlight {
+            border-color: var(--ctp-green);
+            background: linear-gradient(135deg, 
+                rgba(166, 218, 149, 0.1) 0%, 
+                rgba(138, 173, 244, 0.1) 100%);
+        }
+
+        .phase-indicator {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .phase-current {
+            color: var(--ctp-green);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .phase-upcoming {
+            color: var(--ctp-mauve);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .phase-timeline {
+            background: var(--ctp-surface2);
+            color: var(--ctp-subtext1);
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+        }
+
+        .phase-description {
+            color: var(--ctp-text);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .advantage-benefit {
+            text-align: center;
+            color: var(--ctp-text);
+        }
+
+        .advantage-benefit .example {
+            color: var(--ctp-green);
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+
         /* Signal Priority Tiers */
         .tiers-section {
             background: var(--ctp-crust);
@@ -615,8 +712,8 @@
         }
 
         .download-btn {
-            background: linear-gradient(45deg, var(--ctp-mauve), var(--ctp-blue));
-            color: white;
+            background: linear-gradient(45deg, var(--ctp-mauve), var(--ctp-surface0));
+            color: var(--ctp-text);
             padding: var(--spacing-md) var(--spacing-xl);
             border-radius: var(--radius-lg);
             text-decoration: none;
@@ -641,11 +738,11 @@
             bottom: 30px;
             right: 30px;
             background: linear-gradient(45deg, var(--ctp-green), var(--ctp-teal));
-            color: white;
+            color: var(--ctp-crust);
             padding: var(--spacing-md) var(--spacing-lg);
             border-radius: 50px;
             text-decoration: none;
-            font-weight: 600;
+            font-weight: 700;
             display: flex;
             align-items: center;
             gap: var(--spacing-sm);
@@ -749,8 +846,9 @@
         }
 
         .btn-primary {
-            background: linear-gradient(45deg, var(--ctp-mauve), var(--ctp-blue));
-            color: white;
+            background: linear-gradient(45deg, var(--ctp-mauve), var(--ctp-surface0));
+            color: var(--ctp-text);
+            border: 1px solid var(--ctp-mauve);
         }
 
         .btn-secondary {
@@ -1177,8 +1275,9 @@
             right: var(--spacing-md);
         }
 
-        /* Right column spacing */
-        .right-column .tiers-section {
+        /* Column spacing for tiers sections */
+        .right-column .tiers-section,
+        .left-column .tiers-section {
             margin-bottom: var(--spacing-xl);
         }
 
@@ -1256,15 +1355,16 @@
         <!-- Header -->
         <header class="header">
             <div class="logo">
-                <img src="/static/images/agent_tradr_logo_transparent.png" alt="AgentTRADR Logo">
+                <img src="/assets/agenttradrlogo-removebg-preview.png?v=4" alt="AgentTRADR Robot Coach Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+                <span style="display: none; font-size: 2.5rem; color: var(--ctp-mauve);">🤖</span>
                 <span class="logo-text"><span class="agent">Agent</span><span class="tradr">TRADR</span></span>
             </div>
             
             <div class="header-downloads">
-                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-windows.exe" class="header-download-btn" download>
+                <a href="/frontend/downloads/agenttradr-contributor-windows.exe" class="header-download-btn" download>
                     <i class="fab fa-windows"></i>Win
                 </a>
-                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-macos.dmg" class="header-download-btn" download>
+                <a href="/frontend/downloads/agenttradr-contributor-macos.dmg" class="header-download-btn" download>
                     <i class="fab fa-apple"></i>Mac
                 </a>
                 <div class="header-download-btn" onclick="showLinuxOptions(event)">
@@ -1280,7 +1380,7 @@
 
         <!-- Main Content -->
         <div class="main-content">
-            <!-- Left Column: Hero + Earning Tiers -->
+            <!-- Left Column: Hero + Benefits -->
             <div class="left-column">
                 <!-- Hero Section -->
                 <section class="hero-section">
@@ -1364,11 +1464,11 @@
                         <h3 class="card-title">AI Strategy Training + Signal Access</h3>
                         <p class="card-description">
                             Use your Claude Code Pro/Max AI to help develop trading strategies. 
-                            <strong>Instantly get access to all trading signals with 20s delay, progressing to instant delivery as you rank up!</strong>
+                            <strong>Start earning credits NOW to secure higher tier access when signals launch! Early contributors get Day 1 advantage.</strong>
                         </p>
                         <div class="earning-info">
                             <div class="earning-badge">Signals + 10-100 credits per task</div>
-                            <div class="timeline-badge">Immediate signal access → faster signals in ~1 month</div>
+                            <div class="timeline-badge">Training phase now → Signal access in ~1 month</div>
                         </div>
                         <div class="requirement-info">
                             <strong>Requirements:</strong> Claude Code Pro/Max subscription
@@ -1385,7 +1485,7 @@
                         </p>
                         <div class="earning-info">
                             <div class="earning-badge">Signals + 5-50 credits per hour</div>
-                            <div class="timeline-badge">Immediate signal access → faster signals in ~1 month</div>
+                            <div class="timeline-badge">Training phase now → Signal access in ~1 month</div>
                         </div>
                         <div class="requirement-info">
                             <strong>Requirements:</strong> Modern GPU or 8+ core CPU recommended
@@ -1393,33 +1493,65 @@
                         <div class="status-indicator">Ready to earn + trade</div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Right Column: Benefits + FAQ -->
-            <div class="right-column">
                 <!-- Your Benefits Section -->
                 <aside class="tiers-section">
                     <h2 class="tiers-title">Your Benefits: Money + Signals</h2>
                     
                     <div class="tier-card">
                         <div class="tier-icon bronze" data-medal="⚡"></div>
-                        <div class="tier-name">Instant Signal Access</div>
-                        <div class="tier-requirement">Start contributing = immediate signals</div>
-                        <div class="tier-benefit">20s delay → Instant (as you rank up)</div>
+                        <div class="tier-name">Monthly Tier System</div>
+                        <div class="tier-requirement">Credits this month = Next month's tier</div>
+                        <div class="tier-benefit">Dynamic tiers: Can go up or down each month</div>
                     </div>
                     
                     <div class="tier-card">
                         <div class="tier-icon silver" data-medal="💰"></div>
                         <div class="tier-name">Revenue Sharing</div>
-                        <div class="tier-requirement">40-50% of all signal revenue</div>
-                        <div class="tier-benefit">$300+/month signals = real earnings</div>
+                        <div class="tier-requirement">40-50% of signal revenue based on tier</div>
+                        <div class="tier-benefit">Higher tier = Higher percentage share</div>
                     </div>
                     
                     <div class="tier-card">
                         <div class="tier-icon gold" data-medal="🏆"></div>
-                        <div class="tier-name">Tier Progression</div>
-                        <div class="tier-requirement">6 competitive tiers</div>
-                        <div class="tier-benefit">Keep your rank permanently</div>
+                        <div class="tier-name">Early Contributor Bonus</div>
+                        <div class="tier-requirement">Credits earned now = Starting tier advantage</div>
+                        <div class="tier-benefit">Launch with highest tier when signals go live!</div>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Right Column: Early Advantage + FAQ -->
+            <div class="right-column">
+                <!-- Early Contributor Advantage Section -->
+                <aside class="early-advantage-section">
+                    <h2 class="advantage-title">🚀 Early Contributor Advantage</h2>
+                    <div class="advantage-card">
+                        <div class="phase-indicator">
+                            <div class="phase-current">Phase 1: Training</div>
+                            <div class="phase-timeline">Now - Week 2</div>
+                        </div>
+                        <div class="phase-description">
+                            Your computer helps train AI algorithms while you earn credits
+                        </div>
+                    </div>
+                    
+                    <div class="advantage-card">
+                        <div class="phase-indicator">
+                            <div class="phase-upcoming">Phase 2: Signals Live</div>
+                            <div class="phase-timeline">Month 1+</div>
+                        </div>
+                        <div class="phase-description">
+                            Credits earned = Your monthly tier = Signal access level
+                        </div>
+                    </div>
+                    
+                    <div class="advantage-card highlight">
+                        <div class="advantage-benefit">
+                            <strong>Why Start Now?</strong><br>
+                            Early contributors get highest tiers on Day 1!<br>
+                            <span class="example">Example: 1000+ credits now = Gold tier when signals launch</span>
+                        </div>
                     </div>
                 </aside>
 
@@ -1452,7 +1584,7 @@
                 
                 <div class="faq-item">
                     <div class="faq-question">Do I get access to the trading signals?</div>
-                    <div class="faq-answer">Yes! <strong>Everyone gets all signals immediately upon contributing.</strong> New contributors start with 20-second delays, but as you contribute more you rank up through 6 tiers to get signals faster (down to instant delivery). You're not just earning money - you're getting access to premium trading tools!</div>
+                    <div class="faq-answer">Yes! <strong>Start contributing NOW to build up credits for higher tier access when signals launch!</strong> We're currently training algorithms using your computational power. Credits you earn now determine your tier when signals go live (~1 month). Monthly tier system means consistent contribution = consistent signal access level. Early contributors get the highest tiers on Day 1!</div>
                 </div>
                 
                 <div class="faq-item">
@@ -1470,11 +1602,11 @@
                 Download AgentTRADR Contributor
             </h2>
             <div class="download-buttons">
-                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-windows.exe" class="download-btn" download>
+                <a href="/frontend/downloads/agenttradr-contributor-windows.exe" class="download-btn" download>
                     <i class="fab fa-windows"></i>
                     Windows
                 </a>
-                <a href="https://github.com/agent-tradr/agenttradr-contributor/releases/latest/download/agenttradr-contributor-macos.dmg" class="download-btn" download>
+                <a href="/frontend/downloads/agenttradr-contributor-macos.dmg" class="download-btn" download>
                     <i class="fab fa-apple"></i>
                     macOS
                 </a>
@@ -1609,37 +1741,34 @@
             console.log('Download Linux clicked:', type);
             const downloads = {
                 'appimage': {
-                    url: '/downloads/agenttradr-contributor-linux.AppImage',
+                    url: '/frontend/downloads/agenttradr-contributor-linux.AppImage',
                     instructions: 'Make the file executable (chmod +x) and double-click to run!',
                     available: true
                 },
                 'deb': {
-                    url: '/downloads/agenttradr-contributor-linux.deb',
+                    url: '/frontend/downloads/agenttradr-contributor-linux.deb',
                     instructions: 'Install with: sudo dpkg -i agenttradr-contributor-linux.deb',
                     available: true
                 },
                 'rpm': {
-                    url: '/downloads/agenttradr-contributor-linux.rpm',
+                    url: '/frontend/downloads/agenttradr-contributor-linux.rpm',
                     instructions: 'Install with: sudo rpm -i agenttradr-contributor-linux.rpm',
                     available: true
                 },
                 'arch': {
-                    url: '/downloads/agenttradr-contributor-linux.AppImage',
-                    instructions: 'AUR package coming soon! For now, use the AppImage:\nchmod +x agenttradr-contributor-linux.AppImage\n./agenttradr-contributor-linux.AppImage',
-                    available: true,
-                    fallback: true
+                    url: '/frontend/downloads/agenttradr-contributor-linux.AppImage',
+                    instructions: 'Make the file executable (chmod +x) and double-click to run!',
+                    available: true
                 },
                 'snap': {
-                    url: '/downloads/agenttradr-contributor-linux.AppImage',
-                    instructions: 'Snap package coming soon! For now, use the AppImage:\nchmod +x agenttradr-contributor-linux.AppImage\n./agenttradr-contributor-linux.AppImage',
-                    available: true,
-                    fallback: true
+                    url: '/frontend/downloads/agenttradr-contributor-linux.AppImage',
+                    instructions: 'Make the file executable (chmod +x) and double-click to run!',
+                    available: true
                 },
                 'flatpak': {
-                    url: '/downloads/agenttradr-contributor-linux.AppImage',
-                    instructions: 'Flatpak package coming soon! For now, use the AppImage:\nchmod +x agenttradr-contributor-linux.AppImage\n./agenttradr-contributor-linux.AppImage',
-                    available: true,
-                    fallback: true
+                    url: '/frontend/downloads/agenttradr-contributor-linux.AppImage',
+                    instructions: 'Make the file executable (chmod +x) and double-click to run!',
+                    available: true
                 }
             };
 
@@ -1653,19 +1782,7 @@
                     window.location.href = download.url;
                 }
                 
-                // Show instructions
-                setTimeout(() => {
-                    let message;
-                    if (download.external) {
-                        message = `Opening ${type.toUpperCase()} package page...\n\nInstallation instructions:\n${download.instructions}`;
-                    } else if (download.fallback) {
-                        message = `Download started! (Using AppImage as fallback)\n\nInstallation instructions:\n${download.instructions}`;
-                    } else {
-                        message = `Download started!\n\nInstallation instructions:\n${download.instructions}`;
-                    }
-                    
-                    alert(message);
-                }, 500);
+                // No alert needed - download speaks for itself
                 
                 hideLinuxOptions();
             } else {

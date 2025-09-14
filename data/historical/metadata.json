@@ -1,0 +1,47 @@
+{
+  "download_date": "2025-08-30T18:25:07.223739",
+  "data_type": "SAMPLE_DATA",
+  "bar_size": "5 mins",
+  "duration": "365 days",
+  "symbols": [
+    {
+      "symbol": "MES",
+      "bars": 28470,
+      "start": "2024-08-30 09:30:00.840786",
+      "end": "2026-01-22 15:55:00.840786",
+      "size_mb": 1.7264595031738281,
+      "base_price": 6525.0,
+      "current_price": 6280.87
+    },
+    {
+      "symbol": "MNQ",
+      "bars": 28470,
+      "start": "2024-08-30 09:30:00.243276",
+      "end": "2026-01-22 15:55:00.243276",
+      "size_mb": 1.8348617553710938,
+      "base_price": 21800.0,
+      "current_price": 20901.3
+    },
+    {
+      "symbol": "MYM",
+      "bars": 28470,
+      "start": "2024-08-30 09:30:00.573186",
+      "end": "2026-01-22 15:55:00.573186",
+      "size_mb": 1.8349056243896484,
+      "base_price": 44200.0,
+      "current_price": 42918.35
+    },
+    {
+      "symbol": "M2K",
+      "bars": 28470,
+      "start": "2024-08-30 09:30:00.899525",
+      "end": "2026-01-22 15:55:00.899525",
+      "size_mb": 1.7264137268066406,
+      "base_price": 2080.0,
+      "current_price": 2031.86
+    }
+  ],
+  "total_bars": 113880,
+  "total_size_mb": 7.122640609741211,
+  "note": "This is sample data for testing. Replace with real data from IB Gateway for production."
+}

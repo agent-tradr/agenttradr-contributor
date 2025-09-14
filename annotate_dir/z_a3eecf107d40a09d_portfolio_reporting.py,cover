@@ -1,0 +1,912 @@
+> from datetime import datetime, timezone, timedelta
+> from fastapi import APIRouter, HTTPException, Depends, Query
+> from pydantic import BaseModel, Field
+> from sqlalchemy.ext.asyncio import AsyncSession
+> from src.auth.dependencies import get_current_active_user
+> from src.database import get_db_session
+> from typing import Dict, Any, Optional, List
+> import logging
+  
+  # Mock dependency for get_current_user
+> def get_current_user():
+>     """Mock current user dependency"""
+!     class MockUser:
+!         def __init__(self):
+!             self.id = 1
+!     return MockUser()
+  
+  # Missing model classes - simplified for this fix
+> class ReportResponse(BaseModel):
+>     """Report response model"""
+>     report_id: str
+>     status: str
+>     report_type: str
+>     created_at: datetime
+>     download_url: Optional[str] = None
+>     data: Optional[Dict[str, Any]] = None
+  
+> """
+> Portfolio Reporting API - Generate and manage portfolio reports
+> """
+  
+> router = APIRouter(prefix="/api/v1/portfolio/reporting", tags=["Portfolio Reporting"])
+> logger = logging.getLogger(__name__)
+  
+  # Response Models
+> class PerformanceMetrics(BaseModel):
+>     """Performance metrics response model"""
+  
+>     total_return: float = Field(..., description="Total portfolio return %")
+>     ytd_return: float = Field(..., description="Year-to-date return %")
+>     monthly_return: float = Field(..., description="Current month return %")
+>     weekly_return: float = Field(..., description="Current week return %")
+>     daily_return: float = Field(..., description="Today's return %")
+>     sharpe_ratio: Optional[float] = Field(
+>         None, description="Risk-adjusted return ratio" )
+>     volatility: float = Field(..., description="Portfolio volatility %")
+>     max_drawdown: float = Field(..., description="Maximum drawdown %")
+>     win_rate: float = Field(..., description="Winning positions %")
+>     alpha_vs_spy: Optional[float] = Field(None, description="Alpha vs SPY benchmark")
+>     beta: Optional[float] = Field(None, description="Portfolio beta")
+  
+> class SectorAllocation(BaseModel):
+>     """Sector allocation response model"""
+  
+>     sector: str
+>     allocation_pct: float
+>     current_value: float
+>     ai_robotics_relevance: float
+>     performance_contribution: float
+  
+> class PositionSummary(BaseModel):
+>     """Position summary response model"""
+  
+>     symbol: str
+>     company_name: Optional[str]
+>     quantity: float
+>     avg_cost: float
+>     current_price: float
+>     current_value: float
+>     unrealized_pnl: float
+>     unrealized_pnl_pct: float
+>     conviction_score: int
+>     ai_relevance_score: float
+>     days_held: int
+>     target_weeks: Optional[int]
+  
+> class RiskMetrics(BaseModel):
+>     """Risk metrics response model"""
+  
+>     portfolio_var_95: float = Field(..., description="95% Value at Risk")
+>     portfolio_cvar_95: float = Field(..., description="95% Conditional VaR")
+>     concentration_risk: float = Field(..., description="Concentration risk score")
+>     correlation_risk: float = Field(..., description="Correlation risk score")
+>     sector_concentration: float = Field(..., description="Sector concentration %")
+>     largest_position_pct: float = Field(..., description="Largest position %")
+>     effective_positions: int = Field(..., description="Effective number of positions")
+  
+> class DecisionHistory(BaseModel):
+>     """Decision history response model"""
+  
+>     decision_id: str
+>     timestamp: datetime
+>     action: str
+>     symbol: str
+>     conviction_score: int
+>     reasoning: str
+>     status: str
+>     report_type: str
+>     created_at: datetime
+>     download_url: Optional[str] = None
+>     data: Optional[Dict[str, Any]] = None
+  
+> class PortfolioReport(BaseModel):
+>     """Complete portfolio report response model"""
+  
+>     portfolio_id: str
+>     user_id: int
+>     report_timestamp: datetime
+>     portfolio_value: float
+>     cash_balance: float
+>     invested_amount: float
+>     performance: PerformanceMetrics
+>     risk_metrics: RiskMetrics
+>     positions: List[PositionSummary]
+>     sector_allocation: List[SectorAllocation]
+>     recent_decisions: List[DecisionHistory]
+>     ai_robotics_exposure: float
+>     portfolio_health_score: int
+  
+> class BenchmarkComparison(BaseModel):
+>     """Benchmark comparison response model"""
+  
+>     benchmark: str
+>     period: str
+>     portfolio_return: float
+>     benchmark_return: float
+>     excess_return: float
+>     tracking_error: float
+>     information_ratio: Optional[float]
+>     up_capture: Optional[float]
+>     down_capture: Optional[float]
+  
+  # Helper Functions
+> async def get_portfolio_brain(user_id: int):
+>     """Get portfolio brain instance for user - Mock implementation"""
+!     try:
+          # Mock implementation for now
+!         class MockBrain:
+!             def __init__(self, user_id):
+!                 self.user_id = user_id
+!                 self.cash_balance = 10000.0
+              
+!             async def initialize(self):
+!                 pass
+          
+!         return MockBrain(user_id)
+!     except Exception as e:
+!         logger.error(f"Error getting portfolio brain for user {user_id}: {e}")
+!         raise HTTPException(status_code=500, detail="Portfolio initialization failed")
+  
+> def calculate_performance_metrics(
+>     positions: List, historical_values: List[Dict]) -> PerformanceMetrics:
+>     """Calculate comprehensive performance metrics"""
+>     try:
+>         if not historical_values:
+!             return PerformanceMetrics(
+!                 total_return=0.0,
+!                 ytd_return=0.0,
+!                 monthly_return=0.0,
+!                 weekly_return=0.0,
+!                 daily_return=0.0,
+!                 volatility=0.0,
+!                 max_drawdown=0.0,
+!                 win_rate=0.0)
+  
+          # Calculate returns
+>         current_value = historical_values[-1]["value"]
+  
+          # Daily return
+>         daily_return = 0.0
+>         if len(historical_values) >= 2:
+>             prev_value = historical_values[-2]["value"]
+>             daily_return = ((current_value - prev_value) / prev_value) * 100
+  
+          # Weekly return (7 days)
+>         weekly_return = 0.0
+>         if len(historical_values) >= 7:
+>             week_ago_value = historical_values[-7]["value"]
+>             weekly_return = ((current_value - week_ago_value) / week_ago_value) * 100
+  
+          # Monthly return (30 days)
+>         monthly_return = 0.0
+>         if len(historical_values) >= 30:
+>             month_ago_value = historical_values[-30]["value"]
+>             monthly_return = ((current_value - month_ago_value) / month_ago_value) * 100
+  
+          # YTD return (since January 1)
+>         ytd_return = 0.0
+>         year_start = datetime.now().replace(month=1, day=1, hour=0, minute=0, second=0)
+>         ytd_values = [v for v in historical_values if v["timestamp"] >= year_start]
+>         if ytd_values:
+>             ytd_start_value = ytd_values[0]["value"]
+>             ytd_return = ((current_value - ytd_start_value) / ytd_start_value) * 100
+  
+          # Total return (from first data point)
+>         total_return = 0.0
+>         if historical_values:
+>             initial_value = historical_values[0]["value"]
+>             total_return = ((current_value - initial_value) / initial_value) * 100
+  
+          # Volatility (30-day rolling)
+>         volatility = 0.0
+>         if len(historical_values) >= 30:
+>             returns = []
+>             for i in range(1, min(31, len(historical_values))):
+>                 prev_val = historical_values[-(i + 1)]["value"]
+>                 curr_val = historical_values[-i]["value"]
+>                 if prev_val > 0:
+>                     returns.append((curr_val - prev_val) / prev_val)
+>             if returns:
+>                 import numpy as np
+>                 volatility = float(np.std(returns) * np.sqrt(252) * 100)  # Annualized
+  
+          # Max drawdown
+>         max_drawdown = 0.0
+>         if len(historical_values) >= 2:
+>             peak = historical_values[0]["value"]
+>             for point in historical_values:
+>                 if point["value"] > peak:
+>                     peak = point["value"]
+>                 else:
+>                     drawdown = ((peak - point["value"]) / peak) * 100
+>                     max_drawdown = max(max_drawdown, drawdown)
+  
+          # Win rate
+>         win_rate = 0.0
+>         if positions:
+>             winning_positions = sum(
+>                 1
+>                 for pos in positions
+>                 if pos.current_value
+>                 and pos.current_value > pos.quantity * pos.avg_cost_basis
+>             )
+>             win_rate = (winning_positions / len(positions)) * 100
+  
+>         return PerformanceMetrics(
+>             total_return=total_return,
+>             ytd_return=ytd_return,
+>             monthly_return=monthly_return,
+>             weekly_return=weekly_return,
+>             daily_return=daily_return,
+>             volatility=volatility,
+>             max_drawdown=max_drawdown,
+>             win_rate=win_rate)
+  
+!     except Exception as e:
+!         logger.error(f"Error calculating performance metrics: {e}")
+!         return PerformanceMetrics(
+!             total_return=0.0,
+!             ytd_return=0.0,
+!             monthly_return=0.0,
+!             weekly_return=0.0,
+!             daily_return=0.0,
+!             volatility=0.0,
+!             max_drawdown=0.0,
+!             win_rate=0.0)
+  
+> def calculate_risk_metrics(
+>     positions: List, correlation_data: Dict[str, Any]) -> RiskMetrics:
+>     """Calculate comprehensive risk metrics"""
+!     try:
+!         if not positions:
+!             return RiskMetrics(
+!                 portfolio_var_95=0.0,
+!                 portfolio_cvar_95=0.0,
+!                 concentration_risk=0.0,
+!                 correlation_risk=0.0,
+!                 sector_concentration=0.0,
+!                 largest_position_pct=0.0,
+!                 effective_positions=0)
+  
+          # Calculate position weights
+!         total_value = sum(float(pos.current_value or 0) for pos in positions)
+!         if total_value == 0:
+!             return RiskMetrics(
+!                 portfolio_var_95=0.0,
+!                 portfolio_cvar_95=0.0,
+!                 concentration_risk=0.0,
+!                 correlation_risk=0.0,
+!                 sector_concentration=0.0,
+!                 largest_position_pct=0.0,
+!                 effective_positions=len(positions))
+  
+!         position_weights = [
+!             (float(pos.current_value or 0) / total_value) for pos in positions
+!         ]
+          # Largest position percentage
+!         largest_position_pct = max(position_weights) * 100 if position_weights else 0.0
+  
+          # Concentration risk (Herfindahl-Hirschman Index)
+!         concentration_risk = sum(w**2 for w in position_weights) * 100
+  
+          # Effective number of positions
+!         effective_positions = (
+!             int(1 / sum(w**2 for w in position_weights))
+!             if position_weights else 0
+!         )
+  
+          # Sector concentration (simplified)
+!         sector_weights = {}
+!         for i, pos in enumerate(positions):
+!             sector = getattr(pos, "sector", "Unknown")
+!             sector_weights[sector] = sector_weights.get(sector, 0) + position_weights[i]
+  
+!         sector_concentration = (
+!             max(sector_weights.values()) * 100 if sector_weights else 0.0
+!         )
+  
+          # Correlation risk (from correlation data)
+!         correlation_risk = correlation_data.get("avg_correlation", 0.0) * 100
+  
+          # VaR and CVaR (simplified estimates)
+!         portfolio_var_95 = 0.0
+!         portfolio_cvar_95 = 0.0
+  
+!         if correlation_data.get("portfolio_volatility"):
+!             volatility = correlation_data["portfolio_volatility"]
+              # Simplified VaR calculation (95% confidence)
+!             portfolio_var_95 = volatility * 1.645  # 95th percentile
+!             portfolio_cvar_95 = volatility * 2.33  # Expected shortfall beyond VaR
+  
+!         return RiskMetrics(
+!             portfolio_var_95=portfolio_var_95,
+!             portfolio_cvar_95=portfolio_cvar_95,
+!             concentration_risk=concentration_risk,
+!             correlation_risk=correlation_risk,
+!             sector_concentration=sector_concentration,
+!             largest_position_pct=largest_position_pct,
+!             effective_positions=effective_positions)
+  
+!     except Exception as e:
+!         logger.error(f"Error calculating risk metrics: {e}")
+!         return RiskMetrics(
+!             portfolio_var_95=0.0,
+!             portfolio_cvar_95=0.0,
+!             concentration_risk=0.0,
+!             correlation_risk=0.0,
+!             sector_concentration=0.0,
+!             largest_position_pct=0.0,
+!             effective_positions=0)
+  
+  # API Endpoints
+> @router.get("/summary", response_model=PortfolioReport)
+> async def get_portfolio_summary(
+>     current_user = Depends(get_current_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ):
+>     """Get comprehensive portfolio summary report"""
+!     try:
+!         user_id = current_user.id
+  
+          # Get portfolio brain
+!         brain = await get_portfolio_brain(user_id)
+  
+          # Get current positions - Mock for now
+!         positions = []
+  
+          # Get recent decisions - Mock for now
+!         recent_decisions = []
+  
+          # Calculate portfolio value
+!         portfolio_value = sum(float(getattr(pos, 'current_value', 0) or 0) for pos in positions)
+!         cash_balance = getattr(brain, "cash_balance", 0.0)
+  
+          # Mock historical data for performance calculation
+!         historical_values = [
+!             {
+!                 "timestamp": datetime.now() - timedelta(days=i),
+!                 "value": portfolio_value * (1 + (i * 0.001))
+!             }
+!             for i in range(30, 0, -1)
+!         ]
+  
+          # Calculate metrics
+!         performance = calculate_performance_metrics(positions, historical_values)
+  
+          # Get correlation data - Mock for now
+!         correlation_data = {"avg_correlation": 0.5, "portfolio_volatility": 0.15}
+  
+!         risk_metrics = calculate_risk_metrics(positions, correlation_data)
+  
+          # Build position summaries
+!         position_summaries = []
+!         for pos in positions:
+!             current_value = float(getattr(pos, 'current_value', 0) or 0)
+!             cost_basis = float(getattr(pos, 'quantity', 0) * getattr(pos, 'avg_cost_basis', 0))
+!             unrealized_pnl = current_value - cost_basis
+!             unrealized_pnl_pct = (
+!                 (unrealized_pnl / cost_basis * 100)
+!                 if cost_basis > 0 else 0.0
+!             )
+  
+!             days_held = (
+!                 (datetime.now(timezone.utc) - getattr(pos, 'entry_date', datetime.now(timezone.utc))).days
+!                 if getattr(pos, 'entry_date', None) else 0
+!             )
+  
+!             position_summaries.append(
+!                 PositionSummary(
+!                     symbol=getattr(pos, 'symbol', ''),
+!                     company_name=getattr(pos, "company_name", None),
+!                     quantity=float(getattr(pos, 'quantity', 0)),
+!                     avg_cost=float(getattr(pos, 'avg_cost_basis', 0)),
+!                     current_price=current_value / float(getattr(pos, 'quantity', 1)) if getattr(pos, 'quantity', 0) > 0 else 0,
+!                     current_value=current_value,
+!                     unrealized_pnl=unrealized_pnl,
+!                     unrealized_pnl_pct=unrealized_pnl_pct,
+!                     conviction_score=getattr(pos, 'current_conviction', 50) or 50,
+!                     ai_relevance_score=getattr(pos, "ai_relevance_score", 0.0),
+!                     days_held=days_held,
+!                     target_weeks=getattr(pos, 'target_holding_weeks', None)
+!                 )
+!             )
+  
+          # Build decision history
+!         decision_history = []
+!         for decision in recent_decisions:
+!             decision_history.append(
+!                 DecisionHistory(
+!                     decision_id=getattr(decision, 'id', ''),
+!                     timestamp=getattr(decision, 'created_at', datetime.now(timezone.utc)),
+!                     action=getattr(getattr(decision, 'action', None), 'value', 'UNKNOWN') if hasattr(getattr(decision, 'action', None), 'value') else 'UNKNOWN',
+!                     symbol=getattr(decision, 'symbol', ''),
+!                     conviction_score=getattr(decision, 'conviction_score', 0),
+!                     reasoning=getattr(decision, 'reasoning', ''),
+!                     status=getattr(getattr(decision, 'status', None), 'value', 'UNKNOWN') if hasattr(getattr(decision, 'status', None), 'value') else 'UNKNOWN',
+!                     report_type='decision',
+!                     created_at=getattr(decision, 'created_at', datetime.now(timezone.utc))
+!                 )
+!             )
+  
+          # Calculate sector allocation (simplified)
+!         sector_allocation = []
+!         sector_totals = {}
+!         for pos in positions:
+!             sector = getattr(pos, "sector", "Unknown")
+!             value = float(getattr(pos, 'current_value', 0) or 0)
+!             if sector not in sector_totals:
+!                 sector_totals[sector] = {"value": 0, "positions": []}
+!             sector_totals[sector]["value"] += value
+!             sector_totals[sector]["positions"].append(pos)
+  
+!         for sector, data in sector_totals.items():
+!             allocation_pct = (
+!                 (data["value"] / portfolio_value * 100)
+!                 if portfolio_value > 0 else 0
+!             )
+!             sector_allocation.append(
+!                 SectorAllocation(
+!                     sector=sector,
+!                     allocation_pct=allocation_pct,
+!                     current_value=data["value"],
+!                     ai_robotics_relevance=80.0 if "AI" in sector.upper() or "TECH" in sector.upper() else 30.0,
+!                     performance_contribution=allocation_pct
+!                     * (performance.daily_return / 100)
+!                 )
+!             )
+  
+          # Calculate AI/Robotics exposure
+!         ai_robotics_exposure = sum(
+!             alloc.allocation_pct
+!             for alloc in sector_allocation
+!             if alloc.ai_robotics_relevance > 60
+!         )
+  
+          # Calculate portfolio health score
+!         portfolio_health_score = min(
+!             100,
+!             int(
+!                 (100 - risk_metrics.concentration_risk) * 0.3
+!                 + min(100, performance.win_rate) * 0.3
+!                 + max(0, 100 - abs(performance.max_drawdown)) * 0.4
+!             )
+!         )
+  
+!         return PortfolioReport(
+!             portfolio_id=f"portfolio_{user_id}",
+!             user_id=user_id,
+!             report_timestamp=datetime.now(timezone.utc),
+!             portfolio_value=portfolio_value,
+!             cash_balance=cash_balance,
+!             invested_amount=portfolio_value - cash_balance,
+!             performance=performance,
+!             risk_metrics=risk_metrics,
+!             positions=position_summaries,
+!             sector_allocation=sector_allocation,
+!             recent_decisions=decision_history,
+!             ai_robotics_exposure=ai_robotics_exposure,
+!             portfolio_health_score=portfolio_health_score
+!         )
+  
+!     except Exception as e:
+!         logger.error(f"Error generating portfolio summary: {e}", exc_info=True)
+!         raise HTTPException(
+!             status_code=500, detail="Failed to generate portfolio summary" )
+  
+> @router.get("/performance", response_model=PerformanceMetrics)
+> async def get_performance_metrics(
+>     period: str = Query("1M", description="Time period (1D, 1W, 1M, 3M, 6M, 1Y)"),
+>     current_user=Depends(get_current_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ):
+>     """Get detailed performance metrics for specified period"""
+!     try:
+          # Mock implementation
+!         return PerformanceMetrics(
+!             total_return=12.5,
+!             ytd_return=8.3,
+!             monthly_return=2.1,
+!             weekly_return=0.5,
+!             daily_return=0.1,
+!             volatility=15.2,
+!             max_drawdown=5.8,
+!             win_rate=65.0
+!         )
+!     except Exception as e:
+!         logger.error(f"Error getting performance metrics: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to get performance metrics")
+  
+  
+> @router.get("/reports/{report_id}", response_model=ReportResponse)
+> async def get_report_status(
+>     report_id: str,
+>     current_user: dict = Depends(get_current_active_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ) -> ReportResponse:
+>     """Get the status of a generated report"""
+!     try:
+          # Mock report retrieval (commented out due to dependency)
+          # report_service = get_report_service()
+          # report = await report_service.get_report_by_id(report_id, current_user["id"])
+          # 
+          # if not report:
+          #     raise HTTPException(status_code=404, detail="Report not found")
+          # 
+          # return ReportResponse(
+          #     report_id=report.id,
+          #     status=report.status,
+          #     report_type=report.report_type,
+          #     created_at=report.created_at,
+          #     download_url=report.download_url,
+          #     data=report.data
+          # )
+          
+          # Mock response
+!         return ReportResponse(
+!             report_id=report_id,
+!             status="completed",
+!             report_type="performance",
+!             created_at=datetime.now(timezone.utc),
+!             download_url=f"/api/v1/portfolio/reporting/download/{report_id}",
+!             data=_generate_mock_report_data("performance")
+!         )
+      
+!     except Exception as e:
+!         logger.error(f"Error getting report status: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to get report status")
+  
+  
+> def _generate_mock_report_data(report_type: str) -> Dict[str, Any]:
+>     """Generate mock report data for testing"""
+!     return {
+!         "report_type": report_type,
+!         "generated_at": datetime.now(timezone.utc).isoformat(),
+!         "summary": f"Mock {report_type} report data",
+!         "metrics": {
+!             "total_return": 12.5,
+!             "volatility": 15.2,
+!             "sharpe_ratio": 0.82
+!         }
+!     }
+  
+  
+> @router.get("/reports", response_model=List[ReportResponse])
+> async def get_user_reports(
+>     account_id: Optional[str] = Query(None, description="Filter by account ID"),
+>     report_type: Optional[str] = Query(None, description="Filter by report type"),
+>     limit: int = Query(50, ge=1, le=100, description="Maximum reports to return"),
+>     current_user: dict = Depends(get_current_active_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ) -> List[ReportResponse]:
+>     """Get user's report history"""
+!     try:
+          # Mock report list (commented out due to dependency)
+          # report_service = get_report_service()
+          # reports = await report_service.get_user_reports(
+          #     user_id=current_user["id"],
+          #     account_id=account_id,
+          #     report_type=report_type,
+          #     limit=limit
+          # )
+          # 
+          # return [
+          #     ReportResponse(
+          #         report_id=report.id,
+          #         status=report.status,
+          #         report_type=report.report_type,
+          #         created_at=report.created_at,
+          #         download_url=report.download_url
+          #     ) for report in reports
+          # ]
+          
+          # Mock response
+!         return [
+!             ReportResponse(
+!                 report_id="report_001",
+!                 status="completed",
+!                 report_type="performance",
+!                 created_at=datetime.now(timezone.utc) - timedelta(days=1),
+!                 download_url="/api/v1/portfolio/reporting/download/report_001"
+!             ),
+!             ReportResponse(
+!                 report_id="report_002",
+!                 status="completed",
+!                 report_type="risk",
+!                 created_at=datetime.now(timezone.utc) - timedelta(days=2),
+!                 download_url="/api/v1/portfolio/reporting/download/report_002"
+!             )
+!         ]
+      
+!     except Exception as e:
+!         logger.error(f"Error getting user reports: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to get user reports")
+  
+> @router.delete("/reports/{report_id}")
+> async def delete_report(
+>     report_id: str,
+>     current_user: dict = Depends(get_current_active_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ) -> Dict[str, str]:
+>     """Delete a report"""
+!     try:
+          # Mock report deletion (commented out due to dependency)
+          # report_service = get_report_service()
+          # success = await report_service.delete_report(report_id, current_user["id"])
+          # 
+          # if not success:
+          #     raise HTTPException(status_code=404, detail="Report not found")
+          
+!         return {"message": "Report deleted successfully"}
+      
+!     except Exception as e:
+!         logger.error(f"Error deleting report: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to delete report")
+  
+  
+> @router.get("/performance/{account_id}", response_model=PerformanceMetrics)
+> async def get_account_performance_metrics(
+>     account_id: str,
+>     period_days: int = Query(30, ge=1, le=365, description="Performance period in days"),
+>     current_user: dict = Depends(get_current_active_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ) -> PerformanceMetrics:
+>     """Get performance metrics for an account"""
+!     try:
+          # Mock performance calculation (commented out due to dependency)
+          # portfolio_service = get_portfolio_service()
+          # analytics_service = get_analytics_service()
+          # 
+          # if not await portfolio_service.user_has_access(
+          #     user_id=current_user["id"], 
+          #     account_id=account_id
+          # ):
+          #     raise HTTPException(status_code=403, detail="Access denied to account")
+          # 
+          # end_date = datetime.now(timezone.utc)
+          # start_date = end_date - timedelta(days=period_days)
+          # 
+          # metrics = await analytics_service.calculate_performance_metrics(
+          #     account_id=account_id,
+          #     start_date=start_date,
+          #     end_date=end_date
+          # )
+          
+          # Mock metrics
+!         return PerformanceMetrics(
+!             total_return=12.5,
+!             ytd_return=8.3,
+!             monthly_return=2.1,
+!             weekly_return=0.5,
+!             daily_return=0.1,
+!             volatility=18.3,
+!             max_drawdown=8.7,
+!             win_rate=65.0
+!         )
+!     except Exception as e:
+!         logger.error(f"Error getting performance metrics: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to get performance metrics")
+  
+> @router.get("/risk/{account_id}", response_model=RiskMetrics)
+> async def get_risk_metrics(
+>     account_id: str,
+>     current_user: dict = Depends(get_current_active_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ) -> RiskMetrics:
+>     """Get risk metrics for an account"""
+!     try:
+          # Mock risk calculation (commented out due to dependency)
+          # portfolio_service = get_portfolio_service()
+          # risk_service = get_risk_service()
+          # 
+          # if not await portfolio_service.user_has_access(
+          #     user_id=current_user["id"], 
+          #     account_id=account_id
+          # ):
+          #     raise HTTPException(status_code=403, detail="Access denied to account")
+          # 
+          # metrics = await risk_service.calculate_risk_metrics(account_id=account_id)
+          
+          # Mock metrics
+!         return RiskMetrics(
+!             portfolio_var=2.1,
+!             expected_shortfall=3.2,
+!             tracking_error=1.5,
+!             information_ratio=0.85,
+!             correlation_to_benchmark=0.92
+!         )
+!     except Exception as e:
+!         logger.error(f"Error getting risk metrics: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to get risk metrics")
+  
+> @router.get("/allocation/{account_id}")
+> async def get_allocation_breakdown(
+>     account_id: str,
+>     current_user: dict = Depends(get_current_active_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ) -> Dict[str, Any]:
+>     """Get portfolio allocation breakdown"""
+!     try:
+          # Mock allocation data (commented out due to dependency)
+          # portfolio_service = get_portfolio_service()
+          # 
+          # if not await portfolio_service.user_has_access(
+          #     user_id=current_user["id"], 
+          #     account_id=account_id
+          # ):
+          #     raise HTTPException(status_code=403, detail="Access denied to account")
+          # 
+          # allocation = await portfolio_service.get_allocation_breakdown(account_id)
+          
+          # Mock allocation
+!         return {
+!             "by_asset_class": {
+!                 "stocks": 65.0,
+!                 "bonds": 25.0,
+!                 "cash": 10.0
+!             },
+!             "by_sector": {
+!                 "technology": 25.0,
+!                 "healthcare": 15.0,
+!                 "financials": 12.0,
+!                 "consumer": 10.0,
+!                 "other": 38.0
+!             },
+!             "by_geography": {
+!                 "us": 70.0,
+!                 "international_developed": 20.0,
+!                 "emerging_markets": 10.0
+!             },
+!             "concentration_metrics": {
+!                 "top_10_holdings_weight": 45.2,
+!                 "effective_number_holdings": 85,
+!                 "herfindahl_index": 0.12
+!             }
+!         }
+!     except Exception as e:
+!         logger.error(f"Error getting allocation breakdown: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to get allocation breakdown")
+  
+> @router.get("/ai-exposure")
+> async def get_ai_robotics_exposure(
+>     current_user = Depends(get_current_user),
+>     db: AsyncSession = Depends(get_db_session)
+> ):
+>     """Get detailed AI/Robotics sector exposure analysis"""
+!     try:
+          # Get positions - Mock for now
+!         positions = []
+  
+!         total_value = sum(float(getattr(pos, 'current_value', 0) or 0) for pos in positions)
+  
+          # Categorize positions by AI relevance
+!         ai_categories = {
+!             "Core AI/ML": [],
+!             "AI Hardware": [],
+!             "Robotics": [],
+!             "AI Applications": [],
+!             "Supporting Tech": [],
+!             "Non-AI": []
+!         }
+  
+!         for pos in positions:
+              # Simplified AI classification
+!             symbol = getattr(pos, 'symbol', '').upper()
+!             if symbol in ["NVDA", "AMD", "GOOGL", "MSFT", "META"]:
+!                 category = "Core AI/ML"
+!             elif symbol in ["TSM", "ASML", "MU"]:
+!                 category = "AI Hardware"
+!             elif symbol in ["ABB", "FANUC", "KUKA"]:
+!                 category = "Robotics"
+!             elif symbol in ["CRM", "SNOW", "PLTR"]:
+!                 category = "AI Applications"
+!             elif symbol in ["ORCL", "IBM", "CSCO"]:
+!                 category = "Supporting Tech"
+!             else:
+!                 category = "Non-AI"
+  
+!             ai_categories[category].append(
+!                 {
+!                     "symbol": getattr(pos, 'symbol', ''),
+!                     "value": float(getattr(pos, 'current_value', 0) or 0),
+!                     "allocation_pct": (float(getattr(pos, 'current_value', 0) or 0) / total_value * 100) if total_value > 0 else 0
+!                 }
+!             )
+  
+          # Calculate category totals
+!         category_summaries = {}
+!         for category, positions_list in ai_categories.items():
+!             total_category_value = sum(p["value"] for p in positions_list)
+!             category_summaries[category] = {
+!                 "positions": positions_list,
+!                 "total_value": total_category_value,
+!                 "allocation_pct": (total_category_value / total_value * 100) if total_value > 0 else 0,
+!                 "position_count": len(positions_list)
+!             }
+  
+          # Calculate overall AI exposure
+!         ai_exposure_pct = sum(
+!             summary["allocation_pct"]
+!             for category, summary in category_summaries.items()
+!             if category != "Non-AI"
+!         )
+  
+!         return {
+!             "ai_exposure_percentage": ai_exposure_pct,
+!             "total_portfolio_value": total_value,
+!             "ai_categories": category_summaries,
+!             "recommendations": [
+!                 "Strong AI exposure aligns with investment thesis" if ai_exposure_pct > 70 else "Consider increasing AI allocation for better theme alignment",
+!                 f"Diversification across {len([c for c, s in category_summaries.items() if s['position_count'] > 0])} AI categories"
+!             ]
+!         }
+!     except Exception as e:
+!         logger.error(f"Error downloading report: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to download report")
+  
+> @router.get("/health-check")
+> async def portfolio_health_check(current_user: Any = Depends(get_current_user)):
+>     """Get portfolio health check with actionable recommendations"""
+!     try:
+!         user_id = current_user.id
+  
+          # Get portfolio brain
+!         await get_portfolio_brain(user_id)
+  
+          # Simulate health check results
+!         health_metrics = {
+!             "diversification_score": 75,
+!             "risk_level": "MODERATE",
+!             "cash_allocation": 12.5,
+!             "sector_concentration": 35.2,
+!             "avg_conviction": 72,
+!             "recent_performance": "GOOD",
+!             "correlation_risk": "LOW"
+!         }
+  
+          # Generate recommendations
+!         recommendations = []
+  
+!         if health_metrics["cash_allocation"] > 20:
+!             recommendations.append(
+!                 {
+!                     "priority": "HIGH",
+!                     "category": "ALLOCATION",
+!                     "message": "High cash allocation - consider deploying more capital",
+!                     "action": "Review investment opportunities"
+!                 }
+!             )
+!         if health_metrics["sector_concentration"] > 40:
+!             recommendations.append(
+!                 {
+!                     "priority": "MEDIUM",
+!                     "category": "RISK",
+!                     "message": "High sector concentration detected",
+!                     "action": "Consider diversifying across more sectors"
+!                 }
+!             )
+!         if health_metrics["avg_conviction"] < 60:
+!             recommendations.append(
+!                 {
+!                     "priority": "HIGH",
+!                     "category": "STRATEGY",
+!                     "message": "Low average conviction scores",
+!                     "action": "Review position sizing and consider exits"
+!                 }
+!             )
+  
+!         return {
+!             "overall_health_score": 78,
+!             "health_metrics": health_metrics,
+!             "recommendations": recommendations,
+!             "next_review_date": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+!             "crisis_preparedness": "GOOD",
+!             "emergency_actions_available": True
+!         }
+  
+!     except Exception as e:
+!         logger.error(f"Error getting portfolio health check: {e}")
+!         raise HTTPException(status_code=500, detail="Failed to perform health check")
+  
+  # Export router for main application:
+> __all__ = ["router"]

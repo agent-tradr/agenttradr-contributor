@@ -1,0 +1,1137 @@
+> """
+> Version Management System for Algorithmic Trading Strategies
+  
+> Provides Git-like version control for trading strategy code and configurations,
+> enabling rollbacks, A/B testing, and collaborative strategy development.
+  
+> Features:
+> - Version tracking with semantic versioning
+> - Branch management for strategy variants
+> - Merge capabilities with conflict resolution
+> - Performance-based version comparison
+> - Automated rollback on poor performance
+> - Tag-based release management
+> """
+  
+> import json
+> import logging
+> import hashlib
+> from datetime import datetime, timezone, timedelta
+> from typing import Dict, List, Optional, Any, Tuple
+> from dataclasses import dataclass, asdict
+> from pathlib import Path
+> from enum import Enum
+  
+> logger = logging.getLogger(__name__)
+  
+  
+> class VersionStatus(Enum):
+>     """Status of a strategy version."""
+  
+>     DRAFT = "draft"
+>     TESTING = "testing"
+>     ACTIVE = "active"
+>     DEPRECATED = "deprecated"
+>     ARCHIVED = "archived"
+  
+  
+> class MergeStrategy(Enum):
+>     """Strategy for merging versions."""
+  
+>     OURS = "ours"  # Keep our changes
+>     THEIRS = "theirs"  # Keep their changes
+>     MANUAL = "manual"  # Manual conflict resolution
+>     AUTO = "auto"  # Automatic merge based on rules
+  
+  
+> @dataclass
+> class VersionMetadata:
+>     """Metadata for a strategy version."""
+  
+>     version_number: str
+>     created_at: datetime
+>     created_by: str
+>     commit_message: str
+>     parent_version: Optional[str]
+>     branch_name: str
+>     tags: List[str]
+>     is_release: bool
+>     performance_metrics: Dict[str, float]
+>     status: VersionStatus
+>     checksum: str
+  
+>     def to_dict(self) -> Dict[str, Any]:
+>         """Convert to dictionary format."""
+>         data = asdict(self)
+>         data["created_at"] = self.created_at.isoformat()
+>         data["status"] = self.status.value
+>         return data
+  
+  
+> @dataclass
+> class VersionDiff:
+>     """Represents differences between two versions."""
+  
+>     added_lines: List[str]
+>     removed_lines: List[str]
+>     modified_lines: List[Tuple[str, str]]
+>     parameter_changes: Dict[str, Tuple[Any, Any]]
+>     performance_delta: Dict[str, float]
+  
+  
+> @dataclass
+> class BranchInfo:
+>     """Information about a strategy branch."""
+  
+>     name: str
+>     created_at: datetime
+>     created_by: str
+>     base_version: str
+>     head_version: str
+>     description: str
+>     is_feature_branch: bool
+>     merge_target: Optional[str]
+  
+  
+> class VersioningError(Exception):
+>     """Base exception for versioning operations."""
+  
+>     pass
+  
+  
+> class VersionConflictError(VersioningError):
+>     """Raised when there are merge conflicts."""
+  
+>     def __init__(self, message: str, conflicts: List[str]):
+!         super().__init__(message)
+!         self.conflicts = conflicts
+  
+  
+> class StrategyVersionManager:
+>     """
+>     Manages versioning for trading strategies with Git-like operations.
+      
+>     This system provides comprehensive version control for strategy code,
+>     configurations, and parameters with rollback capabilities.
+>     """
+  
+>     def __init__(self, storage_path: str = "versions"):
+>         """
+>         Initialize version manager.
+          
+>         Args:
+>             storage_path: Path to store version data
+>         """
+>         self.storage_path = Path(storage_path)
+>         self.storage_path.mkdir(parents=True, exist_ok=True)
+          
+          # Initialize storage directories
+>         self.refs_path = self.storage_path / "refs"
+>         self.objects_path = self.storage_path / "objects"
+>         self.tags_path = self.storage_path / "tags"
+          
+>         for path in [self.refs_path, self.objects_path, self.tags_path]:
+>             path.mkdir(exist_ok=True)
+          
+          # Current branch tracking
+>         self.current_branch = self._load_current_branch()
+          
+          # Version cache for performance
+>         self.version_cache: Dict[str, VersionMetadata] = {}
+          
+>         logger.info(f"StrategyVersionManager initialized at {storage_path}")
+  
+>     def _load_current_branch(self) -> str:
+>         """Load the current branch name."""
+>         head_file = self.storage_path / "HEAD"
+>         if head_file.exists():
+!             return head_file.read_text().strip()
+>         return "main"
+  
+>     def _save_current_branch(self, branch_name: str):
+>         """Save the current branch name."""
+>         head_file = self.storage_path / "HEAD"
+>         head_file.write_text(branch_name)
+>         self.current_branch = branch_name
+  
+>     def _calculate_checksum(self, content: str) -> str:
+>         """Calculate SHA-256 checksum of content."""
+>         return hashlib.sha256(content.encode()).hexdigest()
+  
+>     def _get_version_path(self, version_id: str) -> Path:
+>         """Get the storage path for a version."""
+          # Use first 2 characters as directory for better file system performance
+>         dir_name = version_id[:2] if len(version_id) >= 2 else "00"
+>         version_dir = self.objects_path / dir_name
+>         version_dir.mkdir(exist_ok=True)
+>         return version_dir / f"{version_id}.json"
+  
+>     def _get_branch_ref_path(self, branch_name: str) -> Path:
+>         """Get the reference file path for a branch."""
+>         return self.refs_path / f"{branch_name}.ref"
+  
+>     def _generate_version_id(self, content: str, timestamp: datetime) -> str:
+>         """Generate a unique version ID."""
+>         unique_str = f"{content}{timestamp.isoformat()}"
+>         return hashlib.sha256(unique_str.encode()).hexdigest()[:12]
+  
+>     def create_version(
+>         self,
+>         strategy_code: str,
+>         strategy_config: Dict[str, Any],
+>         message: str,
+>         user_id: str,
+>         tags: Optional[List[str]] = None,
+>         is_release: bool = False
+>     ) -> str:
+>         """
+>         Create a new version of a strategy.
+          
+>         Args:
+>             strategy_code: The strategy code
+>             strategy_config: Strategy configuration parameters
+>             message: Commit message describing changes
+>             user_id: ID of the user creating the version
+>             tags: Optional tags for the version
+>             is_release: Whether this is a release version
+              
+>         Returns:
+>             Version ID
+>         """
+>         try:
+              # Combine code and config for storage
+>             content = json.dumps({
+>                 "code": strategy_code,
+>                 "config": strategy_config
+>             }, indent=2)
+              
+              # Calculate checksum
+>             checksum = self._calculate_checksum(content)
+              
+              # Check if identical version already exists
+>             for version_id, metadata in self.version_cache.items():
+>                 if metadata.checksum == checksum:
+!                     logger.info(f"Identical version already exists: {version_id}")
+!                     return version_id
+              
+              # Generate version ID
+>             timestamp = datetime.now(timezone.utc)
+>             version_id = self._generate_version_id(content, timestamp)
+              
+              # Get parent version from current branch
+>             parent_version = self._get_branch_head(self.current_branch)
+              
+              # Generate version number
+>             version_number = self._generate_version_number(parent_version, is_release)
+              
+              # Create metadata
+>             metadata = VersionMetadata(
+>                 version_number=version_number,
+>                 created_at=timestamp,
+>                 created_by=user_id,
+>                 commit_message=message,
+>                 parent_version=parent_version,
+>                 branch_name=self.current_branch,
+>                 tags=tags or [],
+>                 is_release=is_release,
+>                 performance_metrics={},
+>                 status=VersionStatus.DRAFT,
+>                 checksum=checksum
+>             )
+              
+              # Save version content
+>             version_path = self._get_version_path(version_id)
+>             version_data = {
+>                 "metadata": metadata.to_dict(),
+>                 "content": content
+>             }
+>             version_path.write_text(json.dumps(version_data, indent=2))
+              
+              # Update branch reference
+>             self._update_branch_head(self.current_branch, version_id)
+              
+              # Update cache
+>             self.version_cache[version_id] = metadata
+              
+              # Create tags if specified
+>             if tags:
+!                 for tag in tags:
+!                     self.create_tag(tag, version_id)
+              
+>             logger.info(f"Created version {version_id} ({version_number}) on branch {self.current_branch}")
+>             return version_id
+              
+!         except Exception as e:
+!             logger.error(f"Failed to create version: {e}")
+!             raise VersioningError(f"Version creation failed: {e}")
+  
+>     def _generate_version_number(self, parent_version: Optional[str], is_release: bool) -> str:
+>         """Generate semantic version number."""
+>         if not parent_version:
+>             return "v1.0.0"
+          
+          # Get parent version metadata
+>         parent_metadata = self.get_version_metadata(parent_version)
+>         if not parent_metadata:
+!             return "v1.0.0"
+          
+          # Parse parent version number
+>         parent_num = parent_metadata.version_number.lstrip('v')
+>         try:
+>             major, minor, patch = map(int, parent_num.split('.'))
+!         except ValueError:
+!             return "v1.0.0"
+          
+          # Increment based on release type
+>         if is_release:
+!             if self.current_branch == "main":
+!                 minor += 1
+!                 patch = 0
+!             else:
+!                 patch += 1
+>         else:
+>             patch += 1
+          
+>         return f"v{major}.{minor}.{patch}"
+  
+>     def _get_branch_head(self, branch_name: str) -> Optional[str]:
+>         """Get the HEAD version of a branch."""
+>         ref_path = self._get_branch_ref_path(branch_name)
+>         if ref_path.exists():
+>             return ref_path.read_text().strip()
+>         return None
+  
+>     def _update_branch_head(self, branch_name: str, version_id: str):
+>         """Update the HEAD reference of a branch."""
+>         ref_path = self._get_branch_ref_path(branch_name)
+>         ref_path.write_text(version_id)
+  
+>     def get_version(self, version_id: str) -> Optional[Dict[str, Any]]:
+>         """
+>         Get a specific version's content.
+          
+>         Args:
+>             version_id: The version ID
+              
+>         Returns:
+>             Version data including code and config
+>         """
+!         try:
+!             version_path = self._get_version_path(version_id)
+!             if not version_path.exists():
+!                 logger.warning(f"Version {version_id} not found")
+!                 return None
+              
+!             version_data = json.loads(version_path.read_text())
+!             content = json.loads(version_data["content"])
+              
+!             return {
+!                 "version_id": version_id,
+!                 "metadata": version_data["metadata"],
+!                 "code": content["code"],
+!                 "config": content["config"]
+!             }
+              
+!         except Exception as e:
+!             logger.error(f"Failed to get version {version_id}: {e}")
+!             return None
+  
+>     def get_version_metadata(self, version_id: str) -> Optional[VersionMetadata]:
+>         """Get metadata for a specific version."""
+          # Check cache first
+>         if version_id in self.version_cache:
+>             return self.version_cache[version_id]
+          
+!         version_data = self.get_version(version_id)
+!         if not version_data:
+!             return None
+          
+!         metadata_dict = version_data["metadata"]
+!         metadata = VersionMetadata(
+!             version_number=metadata_dict["version_number"],
+!             created_at=datetime.fromisoformat(metadata_dict["created_at"]),
+!             created_by=metadata_dict["created_by"],
+!             commit_message=metadata_dict["commit_message"],
+!             parent_version=metadata_dict.get("parent_version"),
+!             branch_name=metadata_dict["branch_name"],
+!             tags=metadata_dict.get("tags", []),
+!             is_release=metadata_dict.get("is_release", False),
+!             performance_metrics=metadata_dict.get("performance_metrics", {}),
+!             status=VersionStatus(metadata_dict.get("status", "draft")),
+!             checksum=metadata_dict["checksum"]
+!         )
+          
+          # Update cache
+!         self.version_cache[version_id] = metadata
+!         return metadata
+  
+>     def list_versions(
+>         self,
+>         branch: Optional[str] = None,
+>         limit: int = 50,
+>         include_all_branches: bool = False
+>     ) -> List[Dict[str, Any]]:
+>         """
+>         List versions with optional filtering.
+          
+>         Args:
+>             branch: Filter by branch name
+>             limit: Maximum number of versions to return
+>             include_all_branches: Include versions from all branches
+              
+>         Returns:
+>             List of version summaries
+>         """
+>         versions = []
+          
+          # Iterate through all version files
+>         for obj_dir in self.objects_path.iterdir():
+>             if not obj_dir.is_dir():
+!                 continue
+              
+>             for version_file in obj_dir.glob("*.json"):
+>                 version_id = version_file.stem
+>                 metadata = self.get_version_metadata(version_id)
+                  
+>                 if not metadata:
+!                     continue
+                  
+                  # Apply branch filter
+>                 if branch and metadata.branch_name != branch:
+!                     continue
+                  
+>                 if not include_all_branches and not branch:
+>                     if metadata.branch_name != self.current_branch:
+>                         continue
+                  
+>                 versions.append({
+>                     "version_id": version_id,
+>                     "version_number": metadata.version_number,
+>                     "created_at": metadata.created_at.isoformat(),
+>                     "created_by": metadata.created_by,
+>                     "message": metadata.commit_message,
+>                     "branch": metadata.branch_name,
+>                     "status": metadata.status.value,
+>                     "is_release": metadata.is_release,
+>                     "tags": metadata.tags
+>                 })
+          
+          # Sort by creation date (newest first)
+>         versions.sort(key=lambda v: v["created_at"], reverse=True)
+          
+>         return versions[:limit]
+  
+>     def create_branch(
+>         self,
+>         branch_name: str,
+>         base_version: Optional[str] = None,
+>         description: str = "",
+>         user_id: str = ""
+>     ) -> str:
+>         """
+>         Create a new branch.
+          
+>         Args:
+>             branch_name: Name of the new branch
+>             base_version: Version to branch from (uses current HEAD if not specified)
+>             description: Branch description
+>             user_id: ID of user creating the branch
+              
+>         Returns:
+>             Branch name
+>         """
+>         try:
+              # Check if branch already exists
+>             ref_path = self._get_branch_ref_path(branch_name)
+>             if ref_path.exists():
+!                 raise VersioningError(f"Branch {branch_name} already exists")
+              
+              # Get base version
+>             if not base_version:
+!                 base_version = self._get_branch_head(self.current_branch)
+              
+>             if not base_version:
+!                 raise VersioningError("No base version available")
+              
+              # Create branch reference
+>             ref_path.write_text(base_version)
+              
+              # Create branch info
+>             branch_info = BranchInfo(
+>                 name=branch_name,
+>                 created_at=datetime.now(timezone.utc),
+>                 created_by=user_id,
+>                 base_version=base_version,
+>                 head_version=base_version,
+>                 description=description,
+>                 is_feature_branch=branch_name not in ["main", "stable"],
+>                 merge_target="main" if branch_name != "main" else None
+>             )
+              
+              # Save branch info
+>             branch_info_path = self.storage_path / "branches" / f"{branch_name}.json"
+>             branch_info_path.parent.mkdir(exist_ok=True)
+>             branch_info_path.write_text(json.dumps(asdict(branch_info), default=str, indent=2))
+              
+>             logger.info(f"Created branch {branch_name} from {base_version}")
+>             return branch_name
+              
+!         except Exception as e:
+!             logger.error(f"Failed to create branch {branch_name}: {e}")
+!             raise
+  
+>     def switch_branch(self, branch_name: str) -> bool:
+>         """
+>         Switch to a different branch.
+          
+>         Args:
+>             branch_name: Name of the branch to switch to
+              
+>         Returns:
+>             Success status
+>         """
+>         ref_path = self._get_branch_ref_path(branch_name)
+>         if not ref_path.exists():
+!             logger.error(f"Branch {branch_name} does not exist")
+!             return False
+          
+>         self._save_current_branch(branch_name)
+>         logger.info(f"Switched to branch {branch_name}")
+>         return True
+  
+>     def merge_versions(
+>         self,
+>         source_version: str,
+>         target_branch: Optional[str] = None,
+>         strategy: MergeStrategy = MergeStrategy.AUTO,
+>         user_id: str = "",
+>         message: Optional[str] = None
+>     ) -> str:
+>         """
+>         Merge a version into a branch.
+          
+>         Args:
+>             source_version: Version to merge from
+>             target_branch: Branch to merge into (uses current if not specified)
+>             strategy: Merge strategy to use
+>             user_id: ID of user performing merge
+>             message: Custom merge message
+              
+>         Returns:
+>             New merged version ID
+>         """
+!         try:
+!             if not target_branch:
+!                 target_branch = self.current_branch
+              
+              # Get target branch HEAD
+!             target_version = self._get_branch_head(target_branch)
+!             if not target_version:
+!                 raise VersioningError(f"Target branch {target_branch} has no HEAD")
+              
+              # Get both versions
+!             source_data = self.get_version(source_version)
+!             target_data = self.get_version(target_version)
+              
+!             if not source_data or not target_data:
+!                 raise VersioningError("Could not load versions for merge")
+              
+              # Perform merge based on strategy
+!             if strategy == MergeStrategy.OURS:
+!                 merged_code = target_data["code"]
+!                 merged_config = target_data["config"]
+!             elif strategy == MergeStrategy.THEIRS:
+!                 merged_code = source_data["code"]
+!                 merged_config = source_data["config"]
+!             elif strategy == MergeStrategy.AUTO:
+                  # Simple auto-merge: combine configs, use newer code
+!                 merged_code = source_data["code"]
+!                 merged_config = {**target_data["config"], **source_data["config"]}
+!             else:
+                  # Manual merge would require user intervention
+!                 raise VersioningError("Manual merge not implemented in this context")
+              
+              # Create merge commit message
+!             if not message:
+!                 source_meta = self.get_version_metadata(source_version)
+!                 message = f"Merge {source_meta.branch_name} into {target_branch}"
+              
+              # Switch to target branch temporarily
+!             original_branch = self.current_branch
+!             self.switch_branch(target_branch)
+              
+!             try:
+                  # Create merged version
+!                 merged_version = self.create_version(
+!                     strategy_code=merged_code,
+!                     strategy_config=merged_config,
+!                     message=message,
+!                     user_id=user_id,
+!                     tags=["merge"],
+!                     is_release=False
+!                 )
+                  
+!                 logger.info(f"Successfully merged {source_version} into {target_branch}: {merged_version}")
+!                 return merged_version
+                  
+!             finally:
+                  # Switch back to original branch
+!                 if original_branch != target_branch:
+!                     self.switch_branch(original_branch)
+                  
+!         except Exception as e:
+!             logger.error(f"Merge failed: {e}")
+!             raise VersioningError(f"Merge failed: {e}")
+  
+>     def diff_versions(
+>         self,
+>         version1: str,
+>         version2: str
+>     ) -> VersionDiff:
+>         """
+>         Calculate differences between two versions.
+          
+>         Args:
+>             version1: First version ID
+>             version2: Second version ID
+              
+>         Returns:
+>             VersionDiff object containing differences
+>         """
+!         v1_data = self.get_version(version1)
+!         v2_data = self.get_version(version2)
+          
+!         if not v1_data or not v2_data:
+!             raise VersioningError("Could not load versions for comparison")
+          
+          # Simple line-based diff for code
+!         v1_lines = v1_data["code"].splitlines()
+!         v2_lines = v2_data["code"].splitlines()
+          
+!         added_lines = [line for line in v2_lines if line not in v1_lines]
+!         removed_lines = [line for line in v1_lines if line not in v2_lines]
+          
+          # Compare configurations
+!         v1_config = v1_data["config"]
+!         v2_config = v2_data["config"]
+          
+!         param_changes = {}
+!         all_keys = set(v1_config.keys()) | set(v2_config.keys())
+          
+!         for key in all_keys:
+!             v1_val = v1_config.get(key)
+!             v2_val = v2_config.get(key)
+!             if v1_val != v2_val:
+!                 param_changes[key] = (v1_val, v2_val)
+          
+          # Get performance metrics if available
+!         v1_meta = self.get_version_metadata(version1)
+!         v2_meta = self.get_version_metadata(version2)
+          
+!         perf_delta = {}
+!         if v1_meta and v2_meta:
+!             for metric in set(v1_meta.performance_metrics.keys()) | set(v2_meta.performance_metrics.keys()):
+!                 v1_perf = v1_meta.performance_metrics.get(metric, 0)
+!                 v2_perf = v2_meta.performance_metrics.get(metric, 0)
+!                 perf_delta[metric] = v2_perf - v1_perf
+          
+!         return VersionDiff(
+!             added_lines=added_lines,
+!             removed_lines=removed_lines,
+!             modified_lines=[],  # Simplified - not tracking modifications
+!             parameter_changes=param_changes,
+!             performance_delta=perf_delta
+!         )
+  
+>     def rollback_to_version(
+>         self,
+>         version_id: str,
+>         user_id: str,
+>         reason: str = ""
+>     ) -> str:
+>         """
+>         Rollback to a previous version.
+          
+>         Args:
+>             version_id: Version to rollback to
+>             user_id: ID of user performing rollback
+>             reason: Reason for rollback
+              
+>         Returns:
+>             New version ID created from rollback
+>         """
+!         try:
+              # Get the version to rollback to
+!             rollback_data = self.get_version(version_id)
+!             if not rollback_data:
+!                 raise VersioningError(f"Version {version_id} not found")
+              
+              # Create rollback message
+!             message = f"Rollback to {version_id}"
+!             if reason:
+!                 message += f": {reason}"
+              
+              # Create new version with rollback content
+!             new_version = self.create_version(
+!                 strategy_code=rollback_data["code"],
+!                 strategy_config=rollback_data["config"],
+!                 message=message,
+!                 user_id=user_id,
+!                 tags=["rollback", f"from_{version_id}"],
+!                 is_release=False
+!             )
+              
+!             logger.info(f"Rolled back to version {version_id}, created new version {new_version}")
+!             return new_version
+              
+!         except Exception as e:
+!             logger.error(f"Rollback failed: {e}")
+!             raise VersioningError(f"Rollback failed: {e}")
+  
+>     def create_tag(
+>         self,
+>         tag_name: str,
+>         version_id: str,
+>         message: str = ""
+>     ) -> bool:
+>         """
+>         Create a tag for a version.
+          
+>         Args:
+>             tag_name: Name of the tag
+>             version_id: Version to tag
+>             message: Optional tag message
+              
+>         Returns:
+>             Success status
+>         """
+!         try:
+!             tag_path = self.tags_path / f"{tag_name}.tag"
+!             if tag_path.exists():
+!                 logger.warning(f"Tag {tag_name} already exists")
+!                 return False
+              
+!             tag_data = {
+!                 "version_id": version_id,
+!                 "created_at": datetime.now(timezone.utc).isoformat(),
+!                 "message": message
+!             }
+              
+!             tag_path.write_text(json.dumps(tag_data, indent=2))
+              
+              # Update version metadata
+!             metadata = self.get_version_metadata(version_id)
+!             if metadata and tag_name not in metadata.tags:
+!                 metadata.tags.append(tag_name)
+                  # Update stored metadata
+!                 version_path = self._get_version_path(version_id)
+!                 version_data = json.loads(version_path.read_text())
+!                 version_data["metadata"]["tags"] = metadata.tags
+!                 version_path.write_text(json.dumps(version_data, indent=2))
+              
+!             logger.info(f"Created tag {tag_name} for version {version_id}")
+!             return True
+              
+!         except Exception as e:
+!             logger.error(f"Failed to create tag {tag_name}: {e}")
+!             return False
+  
+>     def get_tagged_version(self, tag_name: str) -> Optional[str]:
+>         """Get the version ID associated with a tag."""
+!         tag_path = self.tags_path / f"{tag_name}.tag"
+!         if not tag_path.exists():
+!             return None
+          
+!         tag_data = json.loads(tag_path.read_text())
+!         return tag_data.get("version_id")
+  
+>     def update_performance_metrics(
+>         self,
+>         version_id: str,
+>         metrics: Dict[str, float]
+>     ) -> bool:
+>         """
+>         Update performance metrics for a version.
+          
+>         Args:
+>             version_id: Version to update
+>             metrics: Performance metrics to add/update
+              
+>         Returns:
+>             Success status
+>         """
+!         try:
+!             version_path = self._get_version_path(version_id)
+!             if not version_path.exists():
+!                 logger.error(f"Version {version_id} not found")
+!                 return False
+              
+!             version_data = json.loads(version_path.read_text())
+!             version_data["metadata"]["performance_metrics"].update(metrics)
+!             version_path.write_text(json.dumps(version_data, indent=2))
+              
+              # Update cache
+!             if version_id in self.version_cache:
+!                 self.version_cache[version_id].performance_metrics.update(metrics)
+              
+!             logger.info(f"Updated performance metrics for version {version_id}")
+!             return True
+              
+!         except Exception as e:
+!             logger.error(f"Failed to update metrics for {version_id}: {e}")
+!             return False
+  
+>     def update_version_status(
+>         self,
+>         version_id: str,
+>         status: VersionStatus
+>     ) -> bool:
+>         """
+>         Update the status of a version.
+          
+>         Args:
+>             version_id: Version to update
+>             status: New status
+              
+>         Returns:
+>             Success status
+>         """
+!         try:
+!             version_path = self._get_version_path(version_id)
+!             if not version_path.exists():
+!                 logger.error(f"Version {version_id} not found")
+!                 return False
+              
+!             version_data = json.loads(version_path.read_text())
+!             version_data["metadata"]["status"] = status.value
+!             version_path.write_text(json.dumps(version_data, indent=2))
+              
+              # Update cache
+!             if version_id in self.version_cache:
+!                 self.version_cache[version_id].status = status
+              
+!             logger.info(f"Updated status for version {version_id} to {status.value}")
+!             return True
+              
+!         except Exception as e:
+!             logger.error(f"Failed to update status for {version_id}: {e}")
+!             return False
+  
+>     def get_version_history(
+>         self,
+>         version_id: str,
+>         max_depth: int = 10
+>     ) -> List[str]:
+>         """
+>         Get the history of a version (parent chain).
+          
+>         Args:
+>             version_id: Starting version
+>             max_depth: Maximum depth to traverse
+              
+>         Returns:
+>             List of version IDs from newest to oldest
+>         """
+!         history = []
+!         current_id = version_id
+          
+!         for _ in range(max_depth):
+!             if not current_id:
+!                 break
+              
+!             history.append(current_id)
+!             metadata = self.get_version_metadata(current_id)
+              
+!             if not metadata or not metadata.parent_version:
+!                 break
+              
+!             current_id = metadata.parent_version
+          
+!         return history
+  
+>     def find_common_ancestor(
+>         self,
+>         version1: str,
+>         version2: str
+>     ) -> Optional[str]:
+>         """
+>         Find the common ancestor of two versions.
+          
+>         Args:
+>             version1: First version
+>             version2: Second version
+              
+>         Returns:
+>             Common ancestor version ID or None
+>         """
+!         history1 = set(self.get_version_history(version1, max_depth=100))
+!         history2 = set(self.get_version_history(version2, max_depth=100))
+          
+!         common = history1 & history2
+!         if not common:
+!             return None
+          
+          # Find the most recent common ancestor
+!         for version_id in self.get_version_history(version1, max_depth=100):
+!             if version_id in common:
+!                 return version_id
+          
+!         return None
+  
+>     def auto_rollback_on_performance(
+>         self,
+>         current_version: str,
+>         performance_threshold: Dict[str, float],
+>         user_id: str = "system"
+>     ) -> Optional[str]:
+>         """
+>         Automatically rollback if performance drops below threshold.
+          
+>         Args:
+>             current_version: Current version to evaluate
+>             performance_threshold: Minimum acceptable metrics
+>             user_id: User performing rollback
+              
+>         Returns:
+>             New version ID if rollback occurred, None otherwise
+>         """
+!         try:
+!             current_meta = self.get_version_metadata(current_version)
+!             if not current_meta:
+!                 logger.error(f"Version {current_version} not found")
+!                 return None
+              
+              # Check if any metric is below threshold
+!             below_threshold = []
+!             for metric, threshold in performance_threshold.items():
+!                 current_value = current_meta.performance_metrics.get(metric, 0)
+!                 if current_value < threshold:
+!                     below_threshold.append(f"{metric}={current_value:.2f}<{threshold:.2f}")
+              
+!             if not below_threshold:
+!                 logger.info("Performance within acceptable thresholds")
+!                 return None
+              
+              # Find previous stable version
+!             history = self.get_version_history(current_version, max_depth=20)
+              
+!             for version_id in history[1:]:  # Skip current version
+!                 prev_meta = self.get_version_metadata(version_id)
+!                 if not prev_meta:
+!                     continue
+                  
+                  # Check if this version meets thresholds
+!                 meets_threshold = True
+!                 for metric, threshold in performance_threshold.items():
+!                     if prev_meta.performance_metrics.get(metric, 0) < threshold:
+!                         meets_threshold = False
+!                         break
+                  
+!                 if meets_threshold and prev_meta.status == VersionStatus.ACTIVE:
+                      # Perform rollback
+!                     reason = f"Auto-rollback due to performance: {', '.join(below_threshold)}"
+!                     new_version = self.rollback_to_version(
+!                         version_id=version_id,
+!                         user_id=user_id,
+!                         reason=reason
+!                     )
+                      
+                      # Update status
+!                     self.update_version_status(new_version, VersionStatus.ACTIVE)
+!                     self.update_version_status(current_version, VersionStatus.DEPRECATED)
+                      
+!                     logger.warning(f"Auto-rollback performed from {current_version} to {version_id}")
+!                     return new_version
+              
+!             logger.error("No suitable version found for rollback")
+!             return None
+              
+!         except Exception as e:
+!             logger.error(f"Auto-rollback failed: {e}")
+!             return None
+  
+>     def export_version(
+>         self,
+>         version_id: str,
+>         output_path: str
+>     ) -> bool:
+>         """
+>         Export a version to a file.
+          
+>         Args:
+>             version_id: Version to export
+>             output_path: Path to export to
+              
+>         Returns:
+>             Success status
+>         """
+!         try:
+!             version_data = self.get_version(version_id)
+!             if not version_data:
+!                 logger.error(f"Version {version_id} not found")
+!                 return False
+              
+!             output_file = Path(output_path)
+!             output_file.parent.mkdir(parents=True, exist_ok=True)
+!             output_file.write_text(json.dumps(version_data, indent=2))
+              
+!             logger.info(f"Exported version {version_id} to {output_path}")
+!             return True
+              
+!         except Exception as e:
+!             logger.error(f"Failed to export version {version_id}: {e}")
+!             return False
+  
+>     def import_version(
+>         self,
+>         input_path: str,
+>         user_id: str,
+>         branch: Optional[str] = None
+>     ) -> Optional[str]:
+>         """
+>         Import a version from a file.
+          
+>         Args:
+>             input_path: Path to import from
+>             user_id: User performing import
+>             branch: Branch to import into
+              
+>         Returns:
+>             Imported version ID or None
+>         """
+!         try:
+!             input_file = Path(input_path)
+!             if not input_file.exists():
+!                 logger.error(f"Import file {input_path} not found")
+!                 return None
+              
+!             import_data = json.loads(input_file.read_text())
+              
+              # Switch to target branch if specified
+!             original_branch = self.current_branch
+!             if branch and branch != original_branch:
+!                 if not self.switch_branch(branch):
+!                     self.create_branch(branch, user_id=user_id)
+!                     self.switch_branch(branch)
+              
+!             try:
+                  # Create imported version
+!                 version_id = self.create_version(
+!                     strategy_code=import_data["code"],
+!                     strategy_config=import_data["config"],
+!                     message=f"Imported from {input_file.name}",
+!                     user_id=user_id,
+!                     tags=["imported"]
+!                 )
+                  
+!                 logger.info(f"Imported version {version_id} from {input_path}")
+!                 return version_id
+                  
+!             finally:
+                  # Switch back to original branch
+!                 if branch and branch != original_branch:
+!                     self.switch_branch(original_branch)
+                      
+!         except Exception as e:
+!             logger.error(f"Failed to import from {input_path}: {e}")
+!             return None
+  
+>     def cleanup_old_versions(
+>         self,
+>         keep_count: int = 50,
+>         keep_days: int = 90,
+>         keep_releases: bool = True
+>     ) -> int:
+>         """
+>         Clean up old versions to save space.
+          
+>         Args:
+>             keep_count: Number of recent versions to keep
+>             keep_days: Keep versions newer than this many days
+>             keep_releases: Always keep release versions
+              
+>         Returns:
+>             Number of versions cleaned up
+>         """
+!         try:
+!             cutoff_date = datetime.now(timezone.utc) - timedelta(days=keep_days)
+!             all_versions = self.list_versions(include_all_branches=True, limit=1000)
+              
+              # Sort by date
+!             all_versions.sort(key=lambda v: v["created_at"], reverse=True)
+              
+!             cleaned = 0
+!             for i, version_info in enumerate(all_versions):
+                  # Keep recent versions
+!                 if i < keep_count:
+!                     continue
+                  
+                  # Keep recent by date
+!                 version_date = datetime.fromisoformat(version_info["created_at"])
+!                 if version_date > cutoff_date:
+!                     continue
+                  
+                  # Keep releases
+!                 if keep_releases and version_info["is_release"]:
+!                     continue
+                  
+                  # Keep tagged versions
+!                 if version_info["tags"]:
+!                     continue
+                  
+                  # Delete version
+!                 version_id = version_info["version_id"]
+!                 version_path = self._get_version_path(version_id)
+                  
+!                 if version_path.exists():
+!                     version_path.unlink()
+!                     cleaned += 1
+                      
+                      # Remove from cache
+!                     if version_id in self.version_cache:
+!                         del self.version_cache[version_id]
+              
+!             logger.info(f"Cleaned up {cleaned} old versions")
+!             return cleaned
+              
+!         except Exception as e:
+!             logger.error(f"Cleanup failed: {e}")
+!             return 0
+  
+  
+> def compare_version_numbers(version1: str, version2: str) -> int:
+>     """
+>     Compare two semantic version numbers.
+      
+>     Args:
+>         version1: First version (e.g., "v1.2.3")
+>         version2: Second version (e.g., "v1.2.4")
+          
+>     Returns:
+>         -1 if version1 < version2
+>          0 if version1 == version2
+>          1 if version1 > version2
+>     """
+      
+!     def parse_version(version: str) -> Tuple[int, int, int]:
+!         cleaned = version.lstrip("v")
+!         parts = cleaned.split(".")
+!         parsed = tuple(int(part) for part in parts[:3])
+!         if len(parsed) != 3:
+!             return (0, 0, 0)
+!         return parsed
+  
+!     try:
+!         v1_parts = parse_version(version1)
+!         v2_parts = parse_version(version2)
+  
+!         if v1_parts < v2_parts:
+!             return -1
+!         elif v1_parts > v2_parts:
+!             return 1
+!         else:
+!             return 0
+  
+!     except (ValueError, IndexError):
+          # Fallback to string comparison
+!         return -1 if version1 < version2 else (1 if version1 > version2 else 0)

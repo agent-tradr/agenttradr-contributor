@@ -1,0 +1,1081 @@
+> """
+> Strategy Explainability API
+> Explains genetic strategies in plain English with visual flowcharts and performance attribution
+> """
+  
+> from fastapi import APIRouter, Depends, Query, HTTPException
+> from pydantic import BaseModel
+> from sqlalchemy.orm import Session
+> from typing import Dict, List, Any
+> import logging
+> import random
+> from datetime import datetime
+  
+  # Import with fallbacks
+> try:
+>     from src.auth.dependencies import get_current_user
+>     from src.database.core import get_db_session
+>     from src.database.models import User, Strategy, StrategyEvolution
+> except ImportError:
+      # Fallback for missing imports
+>     def get_current_user():
+!         return None
+      
+>     def get_db_session():
+!         return None
+      
+>     class User:
+>         pass
+      
+>     class Strategy:
+>         pass
+      
+>     class StrategyEvolution:
+>         pass
+  
+> logger = logging.getLogger(__name__)
+> router = APIRouter(prefix="/strategy-explainability", tags=["strategy-explainability"])
+  
+  # Pydantic models
+> class StrategyExplanation(BaseModel):
+>     strategy_id: str
+>     name: str
+>     plain_english_description: str
+>     key_characteristics: List[str]
+>     trading_approach: str
+>     complexity_level: str  # "Beginner", "Intermediate", "Advanced"
+>     genetic_lineage: Dict[str, Any]
+>     performance_attribution: Dict[str, Any]
+  
+  
+> class BlockExplanation(BaseModel):
+>     block_name: str
+>     block_type: str
+>     purpose: str
+>     how_it_works: str
+>     why_chosen: str
+>     contribution_score: float  # 0-1, how much this block contributes to performance
+  
+  
+> class StrategyFlowchart(BaseModel):
+>     nodes: List[Dict[str, Any]]
+>     connections: List[Dict[str, Any]]
+>     flow_description: str
+>     decision_points: List[Dict[str, Any]]
+  
+  
+> class EvolutionStory(BaseModel):
+>     generation: int
+>     parents: List[str]
+>     evolution_type: str
+>     mutations_made: List[str]
+>     performance_improvement: float
+>     key_insights: List[str]
+  
+  
+> class StrategyBreakdown(BaseModel):
+>     explanation: StrategyExplanation
+>     block_explanations: List[BlockExplanation]
+>     flowchart: StrategyFlowchart
+>     evolution_story: EvolutionStory
+>     performance_insights: Dict[str, Any]
+  
+  # Natural Language Generator class
+> class StrategyNLG:
+>     """Natural Language Generator for strategies"""
+      
+>     def __init__(self):
+>         """Initialize with templates and vocabulary"""
+>         self.templates = self._load_templates()
+>         self.vocabulary = self._load_vocabulary()
+      
+>     def _load_templates(self):
+>         """Load natural language templates"""
+>         return {
+>             "basic_description": [
+>                 "This is a {complexity_level} {category} trading strategy that {approach}.",
+>                 "A {complexity_level} approach to {category} trading, focusing on {key_concept}.",
+>         "An {evolution_type}-evolved strategy for {category} markets using {main_technique}.",
+>             ],
+>             "genetic_lineage": [
+>                 "This strategy evolved from {parent_count} parent strategies through {evolution_type}.",
+>                 "Generated in generation {generation} by combining the best features from {parent_strategies}.",
+>         "A genetic improvement over previous versions, achieving {improvement}% better performance.",
+>             ],
+>             "block_explanations": {
+>                 "CONDITION": [
+>                     "{block_name} watches market conditions and detects when {condition_description}.",
+>                     "This block identifies opportunities by monitoring {indicators} for {pattern_type} patterns.",
+>         "Acts as the strategy's eyes, spotting {signal_type} signals in {market_context}.",
+>                 ],
+>                 "DIRECTION": [
+>                     "{block_name} interprets market signals and decides whether to go long or short.",
+>                     "This block adds intelligence by analyzing {conditions} and determining trade direction.",
+>         "Makes the key decision: buy, sell, or wait based on {decision_criteria}.",
+>                 ],
+>                 "ENTRY": [
+>                     "{block_name} determines the optimal timing and method for entering positions.",
+>                     "Handles trade execution by {entry_method} when {entry_conditions} are met.",
+>         "Optimizes entry prices through {execution_strategy} to maximize profitability.",
+>                 ],
+>                 "EXIT": [
+>                     "{block_name} manages position exits to protect profits and limit losses.",
+>                     "This block determines when to close positions using {exit_criteria}.",
+>         "Controls risk by implementing {exit_strategy} based on {market_conditions}.",
+>                 ],
+>                 "RISK": [
+>                     "{block_name} calculates position sizes to manage risk exposure.",
+>                     "Determines how much capital to risk per trade based on {risk_parameters}.",
+>         "Protects account balance by limiting maximum loss to {risk_percent}% per trade."
+>                 ]
+>             },
+>             "performance_attribution": [
+>                 "The strategy's success comes primarily from {top_factor} ({contribution}% of performance).",
+>                 "{primary_strength} and {secondary_strength} are the key performance drivers.",
+>                 "Performance is balanced across {factor_count} components, with {top_contributor} leading."
+>             ]
+>         }
+  
+>     def _load_vocabulary(self):
+>         """Load trading vocabulary and synonyms"""
+>         return {
+>             "complexity_levels": {
+>                 1: "simple",
+>                 2: "straightforward",
+>                 3: "moderate",
+>                 4: "sophisticated",
+>                 5: "advanced",
+>                 6: "complex"
+>             },
+>             "trading_approaches": {
+>                 "mean_reversion": "looks for prices to return to their average",
+>                 "momentum": "follows strong price movements",
+>                 "breakout": "trades when prices break through key levels",
+>                 "trend_following": "rides sustained market trends",
+>                 "contrarian": "trades against prevailing market sentiment",
+>                 "scalping": "captures small, quick profits",
+>                 "swing": "holds positions for several days to weeks"
+>             },
+>             "evolution_types": {
+>                 "mutation": "random improvements",
+>                 "crossover": "combining successful strategies",
+>                 "selection": "keeping only the best performers",
+>                 "hybrid": "blending different approaches"
+>             },
+>             "market_contexts": {
+>                 "trending": "trending markets",
+>                 "ranging": "sideways markets",
+>                 "volatile": "high-volatility conditions",
+>                 "calm": "low-volatility periods",
+>                 "reversal": "market turning points"
+>             }
+>         }
+  
+>     def generate_strategy_explanation(self, strategy_data: Dict[str, Any]) -> StrategyExplanation:
+>         """Generate plain English explanation of a strategy"""
+          # Extract key information
+!         blocks = strategy_data.get("blocks", [])
+!         performance = strategy_data.get("performance_metrics", {})
+!         evolution = strategy_data.get("evolution_info", {})
+  
+          # Determine complexity level
+!         complexity = self._assess_complexity(
+!             blocks, evolution.get("generation_number", 1)
+!         )
+  
+          # Generate main description
+!         description = self._generate_main_description(strategy_data, complexity)
+  
+          # Extract key characteristics
+!         characteristics = self._extract_key_characteristics(blocks, performance)
+  
+          # Determine trading approach
+!         approach = self._determine_trading_approach(blocks)
+  
+          # Generate genetic lineage explanation
+!         lineage = self._explain_genetic_lineage(evolution)
+  
+          # Performance attribution
+!         attribution = self._calculate_performance_attribution(blocks, performance)
+  
+!         return StrategyExplanation(
+!             strategy_id=strategy_data.get("id", "unknown"),
+!             name=strategy_data.get("name", "Unnamed Strategy"),
+!             plain_english_description=description,
+!             key_characteristics=characteristics,
+!             trading_approach=approach,
+!             complexity_level=complexity,
+!             genetic_lineage=lineage,
+!             performance_attribution=attribution
+!         )
+  
+>     def _assess_complexity(self, blocks: List[Dict], generation: int) -> str:
+>         """Assess strategy complexity based on blocks and evolution"""
+!         complexity_score = len(blocks) + (generation // 5)
+          
+!         advanced_blocks = [
+!             "ICT_Order_Block_Detector",
+!             "Smart_Money_Direction",
+!             "ML_",
+!             "Neural_",
+!             "Advanced_"
+!         ]
+          
+!         for block in blocks:
+!             block_name = block.get("name", "")
+!             if any(advanced in block_name for advanced in advanced_blocks):
+!                 complexity_score += 1
+          
+!         complexity_levels = {
+!             (0, 3): "Beginner",
+!             (4, 6): "Intermediate",
+!             (7, float("inf")): "Advanced"
+!         }
+  
+!         for (min_score, max_score), level in complexity_levels.items():
+!             if min_score <= complexity_score <= max_score:
+!                 return level
+  
+!         return "Intermediate"
+  
+>     def _generate_main_description(self, strategy_data: Dict, complexity: str) -> str:
+>         """Generate the main strategy description"""
+!         template = random.choice(self.templates["basic_description"])
+  
+!         return template.format(
+!             complexity_level=complexity.lower(),
+!             category=strategy_data.get("category", "general"),
+!             approach=self._get_strategy_approach_description(strategy_data),
+!             key_concept=self._extract_key_concept(strategy_data),
+!             evolution_type=self._get_evolution_type_description(strategy_data),
+!             main_technique=self._identify_main_technique(strategy_data)
+!         )
+  
+>     def _extract_key_characteristics(self, blocks: List[Dict], performance: Dict) -> List[str]:
+>         """Extract key strategy characteristics"""
+!         characteristics = []
+  
+!         if "ICT" in str(blocks):
+!             characteristics.append(
+!                 "Uses smart money concepts and institutional order flow"
+!             )
+  
+!         if any("RSI" in str(block) for block in blocks):
+!             characteristics.append("Employs RSI for momentum and reversal signals")
+  
+!         if any("ATR" in str(block) for block in blocks):
+!             characteristics.append("Adapts to market volatility using ATR")
+  
+!         if any("Mean_Reversion" in str(block) for block in blocks):
+!             characteristics.append("Focuses on mean reversion opportunities")
+  
+!         if any("Trend" in str(block) or "Momentum" in str(block) for block in blocks):
+!             characteristics.append("Captures trending market moves")
+  
+          # Performance-based characteristics
+!         win_rate = performance.get("win_rate", 0)
+!         if win_rate > 0.7:
+!             characteristics.append("High win rate approach with consistent profits")
+!         elif win_rate < 0.4:
+!             characteristics.append("Lower win rate but higher reward-to-risk ratio")
+  
+!         profit_factor = performance.get("profit_factor", 1.0)
+!         if profit_factor > 2.0:
+!             characteristics.append(
+!                 "Strong profit factor indicating good risk management"
+!             )
+  
+          # Default characteristics if none found
+!         if not characteristics:
+!             characteristics = [
+!                 "Systematic approach to market analysis",
+!                 "Risk-managed position sizing",
+!                 "Data-driven entry and exit decisions"
+!             ]
+  
+!         return characteristics[:5]  # Limit to 5 characteristics
+  
+>     def _determine_trading_approach(self, blocks: List[Dict]) -> str:
+>         """Determine the overall trading approach"""
+>         block_analysis = str(blocks).lower()
+          
+>         if "mean_reversion" in block_analysis or "oversold" in block_analysis:
+>             return "Mean reversion strategy that buys low and sells high"
+>         elif "momentum" in block_analysis or "trend" in block_analysis:
+>             return "Momentum strategy that follows strong market moves"
+>         elif "breakout" in block_analysis:
+>             return "Breakout strategy that trades price level penetrations"
+>         elif "scalping" in block_analysis:
+>             return "Scalping strategy focused on quick, small profits"
+>         else:
+>             return "Balanced approach combining multiple trading concepts"
+  
+>     def _explain_genetic_lineage(self, evolution: Dict) -> Dict[str, Any]:
+>         """Explain the genetic evolution story"""
+!         return {
+!             "generation": evolution.get("generation_number", 1),
+!             "evolution_type": evolution.get("evolution_type", "unknown"),
+!             "parent_count": len(evolution.get("parent_strategy_ids", [])),
+!             "fitness_improvement": evolution.get("fitness_improvement", 0),
+!             "explanation": self._generate_evolution_explanation(evolution)
+!         }
+  
+>     def _generate_evolution_explanation(self, evolution: Dict) -> str:
+>         """Generate evolution story explanation"""
+!         generation = evolution.get("generation_number", 1)
+!         evolution_type = evolution.get("evolution_type", "selection")
+!         improvement = evolution.get("fitness_improvement", 0)
+  
+!         if generation == 1:
+!             return (
+!                 "This is a first-generation strategy created from initial parameters."
+!             )
+  
+!         template = random.choice(self.templates["genetic_lineage"])
+!         return template.format(
+!             parent_count=len(evolution.get("parent_strategy_ids", [])),
+!             evolution_type=evolution_type,
+!             generation=generation,
+!             parent_strategies="successful predecessors",
+!             improvement=improvement * 100 if improvement else 0
+!         )
+  
+>     def _calculate_performance_attribution(self, blocks: List[Dict], performance: Dict) -> Dict[str, Any]:
+>         """Calculate which components contribute most to performance"""
+!         attribution = {}
+!         base_contribution = 1.0 / len(blocks) if blocks else 0
+  
+!         for i, block in enumerate(blocks):
+!             block_name = block.get("name", f"Block_{i}")
+!             block_type = block.get("type", "UNKNOWN")
+  
+              # Adjust contribution based on block importance
+!             contribution = base_contribution
+!             if block_type == "CONDITION":
+!                 contribution *= 1.3  # Condition blocks are crucial
+!             elif block_type == "RISK":
+!                 contribution *= 1.2  # Risk management is important
+!             elif block_type == "EXIT":
+!                 contribution *= 1.1  # Exit timing matters
+  
+!             attribution[block_name] = {
+!                 "contribution_percent": contribution * 100,
+!                 "description": f"Contributes through {block_type.lower()} logic"
+!             }
+  
+          # Normalize to sum to 100%
+!         total_contribution = sum(
+!             attr["contribution_percent"] for attr in attribution.values()
+!         )
+!         if total_contribution > 0:
+!             for attr in attribution.values():
+!                 attr["contribution_percent"] = (
+!                     attr["contribution_percent"] / total_contribution
+!                 ) * 100
+  
+!         return attribution
+  
+>     def _get_strategy_approach_description(self, strategy_data: Dict) -> str:
+>         """Get strategy approach description"""
+!         blocks = strategy_data.get("blocks", [])
+!         return self._determine_trading_approach(blocks).split(" strategy ")[0]
+  
+>     def _extract_key_concept(self, strategy_data: Dict) -> str:
+>         """Extract the key trading concept"""
+!         blocks = str(strategy_data.get("blocks", [])).lower()
+  
+!         if "rsi" in blocks:
+!             return "momentum oscillator analysis"
+!         elif "macd" in blocks:
+!             return "moving average convergence analysis"
+!         elif "order_block" in blocks:
+!             return "institutional order flow tracking"
+!         else:
+!             return "technical pattern recognition"
+  
+>     def _get_evolution_type_description(self, strategy_data: Dict) -> str:
+>         """Get evolution type description"""
+!         evolution = strategy_data.get("evolution_info", {})
+!         evo_type = evolution.get("evolution_type", "selection")
+!         return self.vocabulary["evolution_types"].get(evo_type, "algorithmically")
+  
+>     def _identify_main_technique(self, strategy_data: Dict) -> str:
+>         """Identify the main trading technique"""
+!         blocks = strategy_data.get("blocks", [])
+!         block_names = [block.get("name", "") for block in blocks]
+  
+!         if any("RSI" in name for name in block_names):
+!             return "RSI analysis"
+!         elif any("ATR" in name for name in block_names):
+!             return "volatility-based positioning"
+!         elif any("Order_Block" in name for name in block_names):
+!             return "smart money tracking"
+!         else:
+!             return "multi-factor analysis"
+  
+  
+  # API Endpoints
+> nlg = StrategyNLG()
+  
+> @router.get("/explain/{strategy_id}")
+> async def explain_strategy(
+>     strategy_id: str,
+>     current_user: User = Depends(get_current_user),
+> db: Session = Depends(get_db_session),
+> ):
+>     """Get complete explanation of a strategy in plain English"""
+      
+      # Mock implementation
+!     explanation = StrategyExplanation(
+!         strategy_id=strategy_id,
+!         name="Momentum Breakout Strategy",
+!         plain_english_description=nlg.explain_strategy({
+!             "complexity_level": "Intermediate",
+!             "category": "breakout",
+!             "approach": "identifies strong momentum and enters on breakouts",
+!         }),
+!         key_characteristics=[
+!             "Enters when price breaks above resistance with high volume",
+!             "Uses a 2% stop loss to protect capital",
+!             "Takes profits at predetermined levels or when momentum weakens",
+!             "Avoids trading during major news events",
+!         ],
+!         trading_approach="Momentum-based breakout trading",
+!         complexity_level="Intermediate",
+!         genetic_lineage={
+!             "generation": 15,
+!             "parent_strategies": ["STRAT_001", "STRAT_002"],
+!             "evolution_type": "crossover",
+!             "mutations": ["entry_threshold", "exit_timing"],
+!         },
+!         performance_attribution={
+!             "entry_timing": 35,
+!             "risk_management": 25,
+!             "exit_strategy": 20,
+!             "market_selection": 15,
+!             "position_sizing": 5,
+!         },
+!     )
+      
+!     block_explanations = [
+!         BlockExplanation(
+!             block_name="Momentum Scanner",
+!             block_type="CONDITION",
+!             purpose="Identify high-momentum stocks",
+!             how_it_works=nlg.explain_block({
+!                 "name": "Momentum Scanner",
+!                 "type": "CONDITION",
+!                 "indicators": "RSI, volume, and price change",
+!             }),
+!             why_chosen="Historical backtesting showed 70% win rate with this condition",
+!             contribution_score=0.35,
+!         ),
+!         BlockExplanation(
+!             block_name="Breakout Entry",
+!             block_type="ENTRY",
+!             purpose="Enter positions at optimal breakout points",
+!             how_it_works=nlg.explain_block({
+!                 "name": "Breakout Entry",
+!                 "type": "ENTRY",
+!                 "entry_method": "stop-limit orders",
+!                 "entry_conditions": "resistance levels are breached",
+!             }),
+!             why_chosen="Minimizes false breakouts and improves entry prices",
+!             contribution_score=0.25,
+!         ),
+!     ]
+      
+!     flowchart = StrategyFlowchart(
+!         nodes=[
+!             {"id": "1", "type": "start", "label": "Market Scan"},
+!             {"id": "2", "type": "condition", "label": "Momentum Check"},
+!             {"id": "3", "type": "action", "label": "Enter Position"},
+!             {"id": "4", "type": "action", "label": "Manage Risk"},
+!             {"id": "5", "type": "end", "label": "Exit Position"},
+!         ],
+!         connections=[
+!             {"from": "1", "to": "2"},
+!             {"from": "2", "to": "3", "condition": "High Momentum"},
+!             {"from": "3", "to": "4"},
+!             {"from": "4", "to": "5"},
+!         ],
+!         flow_description="The strategy continuously scans for momentum, enters on breakouts, manages risk, and exits based on predefined rules.",
+!         decision_points=[
+!             {"node": "2", "decision": "Is momentum above threshold?"},
+!             {"node": "4", "decision": "Has stop loss or profit target been hit?"},
+!         ],
+!     )
+      
+!     evolution_story = EvolutionStory(
+!         generation=15,
+!         parents=["STRAT_001", "STRAT_002"],
+!         evolution_type="crossover",
+!         mutations_made=[
+!             "Increased momentum threshold from 70 to 80",
+!             "Added volume confirmation requirement",
+!             "Tightened stop loss from 3% to 2%",
+!         ],
+!         performance_improvement=12.5,
+!         key_insights=[
+!             "Higher momentum threshold reduced false signals",
+!             "Volume confirmation improved win rate by 8%",
+!             "Tighter stops preserved capital during drawdowns",
+!         ],
+!     )
+!     return StrategyBreakdown(
+!         explanation=explanation,
+!         block_explanations=block_explanations,
+!         flowchart=flowchart,
+!         evolution_story=evolution_story,
+! performance_insights={
+!             "win_rate": 68,
+!             "average_win": 4.2,
+!             "average_loss": -1.8,
+!             "profit_factor": 2.3,
+!             "sharpe_ratio": 1.85,
+!             "max_drawdown": -8.5,
+!         },
+!     )
+  
+  
+> @router.get("/compare-strategies")
+> async def compare_strategies(
+>     strategy_ids: List[str] = Query(..., description="List of strategy IDs to compare"),
+>     current_user: User = Depends(get_current_user),
+>     db: Session = Depends(get_db_session),
+> ):
+>     """Compare multiple strategies with explanations"""
+      
+!     comparisons = []
+!     for strategy_id in strategy_ids[:3]:  # Limit to 3 strategies
+!         comparisons.append({
+!             "strategy_id": strategy_id,
+!             "name": f"Strategy {strategy_id[-3:]}",
+!             "summary": nlg.explain_strategy({
+!                 "complexity_level": random.choice(["Beginner", "Intermediate", "Advanced"]),
+!                 "category": random.choice(["momentum", "mean-reversion", "breakout"]),
+!             }),
+!             "strengths": [
+!                 "Strong performance in trending markets",
+!                 "Low drawdown risk",
+!                 "Simple to understand and execute",
+!             ],
+!             "weaknesses": [
+!                 "Struggles in ranging markets",
+!                 "Requires active monitoring",
+!                 "Sensitive to slippage",
+!             ],
+!             "best_for": "Traders seeking momentum-based opportunities",
+!         })
+      
+!     return {
+!         "comparisons": comparisons,
+!         "recommendation": "Based on your trading style and risk tolerance, Strategy 001 appears most suitable.",
+!     }
+  
+  
+> @router.get("/evolution-history/{strategy_id}")
+> async def get_evolution_history(
+>     strategy_id: str,
+>     current_user: User = Depends(get_current_user),
+> db: Session = Depends(get_db_session),
+> ):
+>     """Get the complete evolution history of a strategy"""
+      
+!     history = []
+!     for gen in range(1, 6):
+!         history.append({
+!             "generation": gen,
+!             "timestamp": datetime.now().isoformat(),
+!             "evolution_type": random.choice(["mutation", "crossover", "elitism"]),
+!             "changes_made": [
+!                 f"Adjusted parameter {gen}",
+!                 f"Modified block configuration {gen}",
+!             ],
+!             "performance_change": random.uniform(-5, 15),
+!             "narrative": f"Generation {gen} improved the strategy by focusing on {random.choice(['entry timing', 'risk management', 'exit strategy'])}.",
+!         })
+      
+!     return {
+!         "strategy_id": strategy_id,
+!         "total_generations": len(history),
+!         "evolution_history": history,
+!         "overall_improvement": sum(h["performance_change"] for h in history),
+!     }
+  
+> @router.get("/performance-attribution/{strategy_id}")
+> async def get_performance_attribution(
+>     strategy_id: str,
+>     period: str = Query("30d", description="Time period for analysis"),
+>     current_user: User = Depends(get_current_user),
+> db: Session = Depends(get_db_session),
+> ):
+>     """Attribute strategy performance to specific components"""
+      
+!     attribution = {
+!         "strategy_id": strategy_id,
+!         "period": period,
+!         "total_return": 12.5,
+!         "attribution_breakdown": {
+!             "market_timing": {
+!                 "contribution": 4.5,
+!                 "percentage": 36,
+!                 "description": "Entry and exit timing contributed significantly to returns",
+!             },
+!             "position_sizing": {
+!                 "contribution": 3.2,
+!                 "percentage": 25.6,
+!                 "description": "Dynamic position sizing based on volatility improved risk-adjusted returns",
+!             },
+!             "stock_selection": {
+!                 "contribution": 2.8,
+!                 "percentage": 22.4,
+!                 "description": "Momentum-based stock selection outperformed the market",
+!             },
+!             "risk_management": {
+!                 "contribution": 2.0,
+!                 "percentage": 16,
+!                 "description": "Stop losses and profit targets preserved capital during drawdowns",
+!             },
+!         },
+!         "key_insights": [
+!             "Market timing was the largest contributor to performance",
+!             "Position sizing reduced drawdowns by 30%",
+!             "The strategy works best in trending markets",
+!         ],
+!     }
+      
+!     return attribution
+  
+> @router.get("/simplify/{strategy_id}")
+> async def simplify_strategy(
+>     strategy_id: str,
+> detail_level: str = Query(
+>         "standard", description="Detail level: brief, standard, detailed"
+>     ),
+>     audience: str = Query(
+>         "general", description="Audience: general, technical, beginner"
+>     ),
+>     current_user: User = Depends(get_current_user),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """Get natural language summary tailored to audience"""
+!     strategy = db.query(Strategy).filter(Strategy.id == strategy_id).first()
+!     if not strategy:
+!         raise HTTPException(status_code=404, detail="Strategy not found")
+  
+!     strategy_data = {
+!         "id": str(strategy.id),
+!         "name": strategy.name,
+!         "description": strategy.description,
+!         "category": strategy.category.value if strategy.category else "general",
+!         "blocks": parse_strategy_blocks(strategy),
+!         "performance_metrics": strategy.performance_metrics or {}
+!     }
+  
+!     summary = generate_tailored_summary(strategy_data, detail_level, audience)
+  
+!     return {
+!         "strategy_id": strategy_id,
+!         "summary": summary,
+!         "detail_level": detail_level,
+!         "audience": audience,
+!         "reading_time_minutes": estimate_reading_time(summary)
+!     }
+  
+  # Helper functions
+> def parse_strategy_blocks(strategy: Strategy) -> List[Dict[str, Any]]:
+>     """Parse strategy blocks from database"""
+!     blocks = strategy.strategy_metadata.get("blocks", [])
+!     if blocks:
+!         return blocks
+  
+      # Generate realistic mock blocks based on strategy info
+!     mock_blocks = []
+  
+      # Always include basic blocks
+!     mock_blocks.extend([
+!         {
+!             "name": "RSI_Calculator",
+!             "type": "CONDITION",
+!             "parameters": {"period": 14}
+!         },
+!         {"name": "Mean_Reversion_Direction", "type": "DIRECTION", "parameters": {}},
+!         {
+!             "name": "Smart_Limit_Entry",
+!             "type": "ENTRY",
+!             "parameters": {"offset": 0.1}
+!         },
+!         {
+!             "name": "ATR_Stop_Loss",
+!             "type": "EXIT",
+!             "parameters": {"multiplier": 2.0}
+!         },
+!         {
+!             "name": "Fixed_Percent_Risk",
+!             "type": "RISK",
+!             "parameters": {"risk_percent": 2.0}
+!         }
+!     ])
+  
+!     return mock_blocks
+  
+> def generate_block_explanation(block_data: Dict[str, Any]) -> BlockExplanation:
+>     """Generate explanation for individual block"""
+!     block_name = block_data.get("name", "Unknown Block")
+!     block_type = block_data.get("type", "UNKNOWN")
+  
+!     explanations = {
+!         "RSI_Calculator": {
+!             "purpose": "Measures momentum to identify overbought/oversold conditions",
+!             "how_it_works": "Calculates RSI over 14 periods and flags extreme readings",
+!             "why_chosen": "RSI is reliable for mean reversion signals in ranging markets"
+!         },
+!         "Mean_Reversion_Direction": {
+!             "purpose": "Interprets RSI signals for contrarian trading opportunities",
+!             "how_it_works": "Converts RSI extremes into buy/sell signals with confidence scores",
+!             "why_chosen": "Mean reversion works well in sideways and oversold/overbought markets"
+!         },
+!         "Smart_Limit_Entry": {
+!             "purpose": "Optimizes entry prices while ensuring execution",
+!             "how_it_works": "Places limit orders with market fallback after timeout",
+!             "why_chosen": "Better fills than market orders with execution guarantee"
+!         },
+!         "ATR_Stop_Loss": {
+!             "purpose": "Adapts stop losses to market volatility",
+!             "how_it_works": "Sets stops at ATR * multiplier distance from entry",
+!             "why_chosen": "Dynamic stops prevent whipsaws in volatile markets"
+!         },
+!         "Fixed_Percent_Risk": {
+!             "purpose": "Controls position size to limit account risk",
+!             "how_it_works": "Calculates position size to risk fixed percentage per trade",
+!             "why_chosen": "Consistent risk management preserves capital during drawdowns"
+!         }
+!     }
+  
+!     block_info = explanations.get(
+!         block_name,
+!         {
+!             "purpose": f"Handles {block_type.lower()} logic for the strategy",
+!             "how_it_works": f"Processes market data and generates {block_type.lower()} signals",
+!             "why_chosen": f"Selected for its effectiveness in {block_type.lower()} decisions"
+!         }
+!     )
+  
+!     return BlockExplanation(
+!         block_name=block_name,
+!         block_type=block_type,
+!         purpose=block_info["purpose"],
+!         how_it_works=block_info["how_it_works"],
+!         why_chosen=block_info["why_chosen"],
+!         contribution_score=calculate_block_contribution(block_data)
+!     )
+  
+> def calculate_block_contribution(block_data: Dict[str, Any]) -> float:
+>     """Calculate block's contribution to overall performance"""
+      # Simple contribution calculation based on block type
+!     block_type = block_data.get("type", "UNKNOWN")
+  
+!     contributions = {
+!         "CONDITION": 0.25,  # 25% - signal generation
+!         "DIRECTION": 0.25,  # 25% - decision making
+!         "ENTRY": 0.15,      # 15% - execution optimization
+!         "EXIT": 0.20,       # 20% - risk management
+!         "RISK": 0.15        # 15% - position sizing
+!     }
+  
+!     return contributions.get(block_type, 0.1)
+  
+> def generate_strategy_flowchart(
+>     blocks: List[Dict[str, Any]], format: str = "interactive"
+> ) -> StrategyFlowchart:
+>     """Generate visual flowchart of strategy logic"""
+!     nodes = []
+!     connections = []
+  
+!     for i, block in enumerate(blocks):
+!         node = {
+!             "id": f"block_{i}",
+!             "label": block.get("name", f"Block {i}"),
+!             "type": block.get("type", "UNKNOWN"),
+!             "position": {"x": i * 150, "y": 100},
+!             "description": f"{block.get('type', 'Unknown')} block"
+!         }
+!         nodes.append(node)
+  
+          # Create connections between sequential blocks
+!         if i > 0:
+!             connection = {
+!                 "from": f"block_{i - 1}",
+!                 "to": f"block_{i}",
+!                 "label": "feeds into",
+!                 "type": "sequential"
+!             }
+!             connections.append(connection)
+  
+      # Add decision points
+!     decision_points = []
+!     for i, block in enumerate(blocks):
+!         if block.get("type") in ["CONDITION", "DIRECTION"]:
+!             decision_points.append({
+!                 "block_id": f"block_{i}",
+!                 "decision_type": "signal_generation",
+!                 "outcomes": ["signal", "no_signal"],
+!                 "description": f"Does {block.get('name')} generate a signal?"
+!             })
+  
+!     flow_description = generate_flow_description(blocks)
+  
+!     return StrategyFlowchart(
+!         nodes=nodes,
+!         connections=connections,
+!         flow_description=flow_description,
+!         decision_points=decision_points
+!     )
+  
+> def generate_flow_description(blocks: List[Dict[str, Any]]) -> str:
+>     """Generate natural language description of strategy flow"""
+!     if not blocks:
+!         return "No blocks configured for this strategy."
+  
+!     block_names = [block.get("name", "Unknown") for block in blocks]
+  
+!     description = (
+!         f"The strategy begins with {block_names[0]}, which analyzes market data. "
+!     )
+  
+!     if len(block_names) > 1:
+!         description += (
+!             f"This feeds into {block_names[1]}, which makes trading decisions. "
+!         )
+  
+!         if len(block_names) > 2:
+!             description += (
+!                 f"When a signal is generated, {block_names[2]} handles trade execution. "
+!             )
+  
+!         if len(block_names) > 3:
+!             description += f"{block_names[3]} manages position exits and risk. "
+  
+!         if len(block_names) > 4:
+!             description += (
+!                 f"Finally, {block_names[4]} determines appropriate position sizes."
+!             )
+  
+!     return description
+  
+> def generate_evolution_story(evolution_info: Dict[str, Any]) -> EvolutionStory:
+>     """Generate evolution story from evolution data"""
+!     if not evolution_info:
+!         return EvolutionStory(
+!             generation=1,
+!             parents=[],
+!             evolution_type="original",
+!             mutations_made=["Initial strategy creation"],
+!             performance_improvement=0.0,
+!             key_insights=["First generation strategy with baseline parameters"]
+!         )
+  
+!     return EvolutionStory(
+!         generation=evolution_info.get("generation_number", 1),
+!         parents=evolution_info.get("parent_strategy_ids", []),
+!         evolution_type=evolution_info.get("evolution_type", "selection"),
+!         mutations_made=extract_mutations(evolution_info),
+!         performance_improvement=evolution_info.get("fitness_improvement", 0.0),
+!         key_insights=generate_evolution_insights(evolution_info)
+!     )
+  
+> def extract_mutations(evolution_info: Dict[str, Any]) -> List[str]:
+>     """Extract mutation descriptions from evolution parameters"""
+!     mutations = []
+!     params = evolution_info.get("evolution_parameters", {})
+  
+!     if params.get("parameter_changes"):
+!         mutations.append("Parameter optimization")
+!     if params.get("block_modifications"):
+!         mutations.append("Block configuration updates")
+!     if params.get("new_blocks"):
+!         mutations.append("New block integration")
+  
+!     if not mutations:
+!         mutations = [
+!             f"{evolution_info.get('evolution_type', 'Unknown')} evolution applied"
+!         ]
+  
+!     return mutations
+  
+> def generate_evolution_insights(evolution_info: Dict[str, Any]) -> List[str]:
+>     """Generate insights from evolution data"""
+!     insights = []
+!     improvement = evolution_info.get("fitness_improvement", 0)
+!     if improvement > 0.1:
+!         insights.append(
+!             f"Significant performance improvement of {improvement * 100:.1f}%"
+!         )
+!     elif improvement > 0:
+!         insights.append(f"Modest performance gain of {improvement * 100:.1f}%")
+!     else:
+!         insights.append("Performance maintained during evolution")
+  
+!     generation = evolution_info.get("generation_number", 1)
+!     if generation > 5:
+!         insights.append(f"Highly evolved strategy from generation {generation}")
+  
+!     evolution_type = evolution_info.get("evolution_type", "")
+!     if evolution_type == "crossover":
+!         insights.append("Benefits from combining successful strategies")
+!     elif evolution_type == "mutation":
+!         insights.append("Improved through targeted parameter adjustments")
+  
+!     return insights
+  
+> def generate_performance_insights(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
+>     """Generate performance insights"""
+!     performance = strategy_data.get("performance_metrics", {})
+  
+!     insights = {
+!         "overall_assessment": "Strategy shows balanced performance characteristics",
+!         "strengths": [],
+!         "areas_for_improvement": [],
+!         "risk_profile": "Moderate risk with controlled drawdowns",
+!         "market_suitability": ["Range-bound markets", "Medium volatility conditions"]
+!     }
+  
+      # Analyze performance metrics
+!     win_rate = performance.get("win_rate", 0.5)
+!     if win_rate > 0.6:
+!         insights["strengths"].append("High win rate indicates consistent profitability")
+!     elif win_rate < 0.4:
+!         insights["areas_for_improvement"].append(
+!             "Win rate could be improved through better signal filtering"
+!         )
+  
+!     profit_factor = performance.get("profit_factor", 1.0)
+!     if profit_factor > 1.5:
+!         insights["strengths"].append(
+!             "Strong profit factor shows good risk/reward management"
+!         )
+!     elif profit_factor < 1.2:
+!         insights["areas_for_improvement"].append(
+!             "Profit factor suggests need for better risk management"
+!         )
+  
+!     return insights
+  
+> def build_evolution_tree(strategy: Strategy, db: Session, depth: int) -> Dict[str, Any]:
+>     """Build evolution tree for strategy genealogy"""
+!     return {
+!         "strategy_id": str(strategy.id),
+!         "generation": strategy.generation_number,
+!         "parents": [],  # Would be populated from database
+!         "children": [],  # Would be populated from database
+!         "siblings": []  # Would be populated from database
+!     }
+  
+> def count_ancestors(evolution_tree: Dict[str, Any]) -> int:
+>     """Count total ancestors in evolution tree"""
+!     return len(evolution_tree.get("parents", []))
+  
+> def calculate_evolution_metrics(evolution_tree: Dict[str, Any]) -> Dict[str, Any]:
+>     """Calculate evolution metrics"""
+!     return {
+!         "total_generations": evolution_tree.get("generation", 1),
+!         "evolution_efficiency": 0.75,  # Mock data
+!         "genetic_diversity": 0.6  # Mock data
+!     }
+  
+> def calculate_detailed_performance_attribution(
+>     strategy: Strategy, time_period: str, db: Session
+> ) -> Dict[str, Any]:
+>     """Calculate detailed performance attribution"""
+!     return {
+!         "signal_quality": {
+!             "contribution": 35,
+!             "description": "Quality of entry/exit signals"
+!         },
+!         "risk_management": {
+!             "contribution": 25,
+!             "description": "Position sizing and stop losses"
+!         },
+!         "market_timing": {"contribution": 20, "description": "Entry and exit timing"},
+!         "parameter_optimization": {
+!             "contribution": 20,
+!             "description": "Optimized strategy parameters"
+!         }
+!     }
+  
+> def generate_attribution_insights(attribution: Dict[str, Any]) -> List[str]:
+>     """Generate insights from attribution analysis"""
+!     insights = []
+      # Find top contributor
+!     top_factor = max(attribution.items(), key=lambda x: x[1]["contribution"])
+!     insights.append(
+!         f"{top_factor[0]} is the primary performance driver at {top_factor[1]['contribution']}%"
+!     )
+  
+      # Look for balance
+!     contributions = [attr["contribution"] for attr in attribution.values()]
+!     if max(contributions) - min(contributions) < 20:
+!         insights.append("Performance is well-balanced across all components")
+  
+!     return insights
+  
+> def generate_improvement_recommendations(attribution: Dict[str, Any]) -> List[str]:
+>     """Generate recommendations for improvement"""
+!     recommendations = []
+      # Find weakest area
+!     weak_factor = min(attribution.items(), key=lambda x: x[1]["contribution"])
+!     if weak_factor[1]["contribution"] < 15:
+!         recommendations.append(
+!             f"Focus on improving {weak_factor[0]} for better overall performance"
+!         )
+  
+!     recommendations.append("Consider A/B testing parameter variations")
+!     recommendations.append("Monitor performance across different market conditions")
+  
+!     return recommendations
+  
+> def generate_tailored_summary(
+>     strategy_data: Dict[str, Any], detail_level: str, audience: str
+> ) -> str:
+>     """Generate summary tailored to specific audience and detail level"""
+!     name = strategy_data.get("name", "Strategy")
+  
+!     if audience == "beginner":
+!         summary = f"{name} is a trading strategy that automatically makes buy and sell decisions. "
+!         summary += (
+!             "It watches market patterns and tries to profit from price movements. "
+!         )
+  
+!         if detail_level != "brief":
+!             summary += "The strategy uses several 'building blocks' that each have a specific job: "
+!             summary += "some watch for opportunities, others decide when to buy or sell, and others manage risk."
+  
+!     elif audience == "technical":
+!         summary = f"{name} implements a multi-component algorithmic trading system. "
+!         blocks = strategy_data.get("blocks", [])
+  
+!         if blocks:
+!             summary += f"Architecture consists of {len(blocks)} functional blocks: "
+!             block_types = list(set(block.get("type", "UNKNOWN") for block in blocks))
+!             summary += f"{', '.join(block_types)} components."
+  
+!             if detail_level == "detailed":
+!                 summary += " Signal generation utilizes technical indicators with quantified confidence scoring. "
+!                 summary += "Risk management employs dynamic position sizing based on market volatility metrics."
+  
+!     else:  # general audience
+!         summary = f"{name} is an automated trading strategy that analyzes market data to identify opportunities. "
+!         summary += "It combines multiple analytical techniques to make informed trading decisions."
+  
+!         if detail_level != "brief":
+!             summary += " The strategy evaluates market conditions, determines trade direction, "
+!             summary += "optimizes entry timing, manages exits, and controls position sizes for risk management."
+  
+!     return summary
+  
+> def estimate_reading_time(text: str) -> int:
+>     """Estimate reading time in minutes"""
+!     words = len(text.split())
+      # Average reading speed is 200-250 words per minute
+!     return max(1, words // 200)

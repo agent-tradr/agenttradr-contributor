@@ -1,0 +1,563 @@
+> from datetime import datetime, timezone, timedelta
+> from decimal import Decimal
+> from sqlalchemy.orm import Session
+> from typing import Any, Dict, Optional, List
+> from uuid import uuid4
+> import logging
+  
+> from src.addons.exceptions import (
+>     AddonNotFoundError,
+>     AddonSubscriptionNotFoundError,
+>     AddonBillingError,
+>     UsageLimitExceededError,
+>     DuplicateSubscriptionError,
+> )
+> from src.addons.models import AddonCategory, AddonStatus, AddonSubscriptionStatus
+  
+> """
+> Add-on service for managing platform add-ons.
+  
+> This module provides the business logic for add-on management including
+> creation, subscription, pricing, availability checking, and billing.
+> """
+  
+> logger = logging.getLogger(__name__)
+  
+  
+> class AddonService:
+>     """Service for managing platform add-ons."""
+  
+>     def __init__(self, session: Session = None):
+>         """Initialize add-on service.
+  
+>         Args:
+>             session: Database session (optional for testing)
+>         """
+>         self.session = session
+>         self.db_session = session  # Alias for compatibility
+  
+          # Initialize addon catalog
+>         self._addons = self._load_addon_catalog()
+  
+          # Mock stripe service for development
+>         try:
+>             from src.payments.stripe_service import stripe_service
+  
+>             self.stripe_service = stripe_service
+!         except ImportError:
+              # Use mock for development
+!             from unittest.mock import MagicMock
+  
+!             self.stripe_service = MagicMock()
+!             self.stripe_service.create_subscription.return_value = {
+!                 "id": f"sub_mock_{uuid4()}",
+!                 "status": "active",
+!             }
+  
+>     def _load_addon_catalog(self) -> Dict[str, Dict[str, Any]]:
+>         """Load addon catalog with definitions and pricing."""
+>         return {
+>             "api_access": {
+>                 "name": "API Access",
+>                 "description": "Full REST API access for automated trading",
+>                 "category": AddonCategory.DATA,
+>                 "status": AddonStatus.ACTIVE,
+>                 "price_monthly": Decimal("49.99"),
+>                 "price_yearly": Decimal("499.99"),
+>                 "features": [
+>                     "unlimited_api_calls",
+>                     "webhook_notifications",
+>                     "historical_data_access",
+>                     "batch_operations",
+>                 ],
+>                 "limits": {"max_api_keys": 3, "rate_limit_per_minute": 1000},
+>             },
+>             "sms_alerts": {
+>                 "name": "SMS Alerts",
+>                 "description": "Instant SMS notifications for trading signals",
+>                 "category": AddonCategory.NOTIFICATIONS,
+>                 "status": AddonStatus.ACTIVE,
+>                 "price_monthly": Decimal("19.99"),
+>                 "price_yearly": Decimal("199.99"),
+>                 "features": [
+>                     "sms_notifications",
+>                     "priority_alerts",
+>                     "custom_templates",
+>                 ],
+>                 "limits": {"max_sms_per_month": 500, "max_phone_numbers": 3},
+>             },
+>             "advanced_analytics": {
+>                 "name": "Advanced Analytics",
+>                 "description": "In-depth portfolio and performance analytics",
+>                 "category": AddonCategory.ANALYTICS,
+>                 "status": AddonStatus.ACTIVE,
+>                 "price_monthly": Decimal("29.99"),
+>                 "price_yearly": Decimal("299.99"),
+>                 "features": [
+>                     "custom_reports",
+>                     "advanced_charts",
+>                     "risk_analysis",
+>                     "data_export",
+>                 ],
+>                 "limits": {"max_reports_per_month": 50, "data_retention_months": 24},
+>             },
+>             "priority_support": {
+>                 "name": "Priority Support",
+>                 "description": "24/7 priority customer support",
+>                 "category": AddonCategory.SUPPORT,
+>                 "status": AddonStatus.ACTIVE,
+>                 "price_monthly": Decimal("39.99"),
+>                 "price_yearly": Decimal("399.99"),
+>                 "features": ["priority_tickets", "phone_support", "dedicated_manager"],
+>                 "limits": {"response_time_hours": 1, "max_tickets_per_month": 20},
+>             },
+>             "white_label": {
+>                 "name": "White Label",
+>                 "description": "Custom branding for your platform",
+>                 "category": AddonCategory.PREMIUM,
+>                 "status": AddonStatus.ACTIVE,
+>                 "price_monthly": Decimal("199.99"),
+>                 "price_yearly": Decimal("1999.99"),
+>                 "features": [
+>                     "custom_branding",
+>                     "domain_mapping",
+>                     "custom_emails",
+>                     "logo_upload",
+>                 ],
+>                 "limits": {"max_brands": 5, "custom_domains": 10},
+>             },
+>             "webhook_notifications": {
+>                 "name": "Webhook Notifications",
+>                 "description": "Real-time webhook notifications for events",
+>                 "category": AddonCategory.NOTIFICATIONS,
+>                 "status": AddonStatus.ACTIVE,
+>                 "price_monthly": Decimal("15.99"),
+>                 "price_yearly": Decimal("159.99"),
+>                 "features": [
+>                     "webhook_delivery",
+>                     "retry_logic",
+>                     "event_filtering",
+>                     "signature_verification",
+>                 ],
+>                 "limits": {"max_webhooks": 10, "events_per_day": 10000},
+>             },
+>         }
+  
+>     def get_addon(self, addon_code: str) -> Optional[Dict[str, Any]]:
+>         """Get addon definition by code.
+  
+>         Args:
+>             addon_code: Addon code to retrieve
+  
+>         Returns:
+>             Addon definition dict or None if not found
+>         """
+!         return self._addons.get(addon_code)
+  
+>     def list_addons(
+>         self, category: Optional[str] = None, active_only: bool = True
+>     ) -> List[Dict[str, Any]]:
+>         """List available addons.
+  
+>         Args:
+>             category: Filter by category (optional)
+>             active_only: Only return active addons
+  
+>         Returns:
+>             List of addon definitions
+>         """
+!         addons = []
+!         for code, addon in self._addons.items():
+!             if active_only and addon.get("status") != AddonStatus.ACTIVE:
+!                 continue
+  
+!             if category and addon.get("category") != category:
+!                 continue
+  
+!             addon_info = addon.copy()
+!             addon_info["code"] = code
+!             addons.append(addon_info)
+  
+!         return addons
+  
+>     def check_addon_availability(
+>         self, addon_code: str, user_id: str, region: Optional[str] = None
+>     ) -> Dict[str, Any]:
+>         """Check if addon is available for user.
+  
+>         Args:
+>             addon_code: Addon code to check
+>             user_id: User ID
+>             region: User's region (optional)
+  
+>         Returns:
+>             Dict with availability status and reason
+>         """
+!         addon = self.get_addon(addon_code)
+!         if not addon:
+!             return {
+!                 "available": False,
+!                 "reason": "Addon not found",
+!                 "error_code": "ADDON_NOT_FOUND",
+!             }
+  
+!         if addon.get("status") != AddonStatus.ACTIVE:
+!             return {
+!                 "available": False,
+!                 "reason": "Addon not active",
+!                 "error_code": "ADDON_INACTIVE",
+!             }
+  
+          # Check region restrictions (if implemented)
+!         if region and not self._check_region_availability(addon_code, region):
+!             return {
+!                 "available": False,
+!                 "reason": f"Addon not available in region {region}",
+!                 "error_code": "REGION_RESTRICTED",
+!             }
+  
+!         return {
+!             "available": True,
+!             "reason": "Available",
+!             "pricing": {
+!                 "monthly": float(addon["price_monthly"]),
+!                 "yearly": float(addon["price_yearly"]),
+!             },
+!         }
+  
+>     def _check_region_availability(self, addon_code: str, region: str) -> bool:
+>         """Check if addon is available in specific region."""
+          # For now, assume all addons are available globally
+          # In full implementation, this would check region restrictions
+!         return True
+  
+>     def create_subscription(
+>         self,
+>         user_id: str,
+>         addon_code: str,
+>         billing_cycle: str = "monthly",
+>         payment_method_id: Optional[str] = None,
+>         trial_days: int = 0,
+>     ) -> Dict[str, Any]:
+>         """Create addon subscription for user.
+  
+>         Args:
+>             user_id: User ID
+>             addon_code: Addon code to subscribe to
+>             billing_cycle: "monthly" or "yearly"
+>             payment_method_id: Payment method ID (optional)
+>             trial_days: Trial period in days
+  
+>         Returns:
+>             Dict with subscription details
+>         """
+>         try:
+              # Validate addon exists and is available
+>             availability = self.check_addon_availability(addon_code, user_id)
+>             if not availability["available"]:
+>                 raise AddonNotFoundError(addon_code, availability["reason"])
+  
+>             addon = self.get_addon(addon_code)
+  
+              # Check for existing subscription
+>             existing = self._get_user_addon_subscription(user_id, addon_code)
+>             if (
+>                 existing
+>                 and existing.get("status") == AddonSubscriptionStatus.ACTIVE.value
+>             ):
+>                 raise DuplicateSubscriptionError(user_id, addon_code)
+  
+              # Calculate pricing
+>             price_key = f"price_{billing_cycle}"
+>             price = addon[price_key]
+  
+              # Create Stripe subscription (or mock)
+>             stripe_subscription = self.stripe_service.create_subscription(
+>                 user_id=user_id,
+>                 addon_code=addon_code,
+>                 price=price,
+>                 billing_cycle=billing_cycle,
+>                 payment_method_id=payment_method_id,
+>                 trial_days=trial_days,
+>             )
+  
+              # Create local subscription record
+>             subscription_data = {
+>                 "id": str(uuid4()),
+>                 "user_id": user_id,
+>                 "addon_code": addon_code,
+>                 "status": AddonSubscriptionStatus.ACTIVE.value,
+>                 "billing_cycle": billing_cycle,
+>                 "price": price,
+>                 "stripe_subscription_id": stripe_subscription.get("id"),
+>                 "features_enabled": addon["features"].copy(),
+>                 "usage_limits": addon["limits"].copy(),
+>                 "created_at": datetime.now(timezone.utc),
+>                 "activated_at": datetime.now(timezone.utc) if trial_days == 0 else None,
+>                 "trial_end": (
+>                     datetime.now(timezone.utc) + timedelta(days=trial_days)
+>                     if trial_days > 0
+>                     else None
+>                 ),
+>             }
+  
+              # In full implementation, save to database
+>             logger.info(
+>                 f"Created subscription {subscription_data['id']} for user {user_id}"
+>             )
+  
+>             return {
+>                 "success": True,
+>                 "subscription": subscription_data,
+>                 "message": f"Successfully subscribed to {addon['name']}",
+>             }
+  
+>         except Exception as e:
+>             logger.error(f"Failed to create subscription: {str(e)}")
+>             raise AddonBillingError(f"Failed to create subscription: {str(e)}")
+  
+>     def cancel_subscription(
+>         self, user_id: str, addon_code: str, immediate: bool = False
+>     ) -> Dict[str, Any]:
+>         """Cancel addon subscription.
+  
+>         Args:
+>             user_id: User ID
+>             addon_code: Addon code to cancel
+>             immediate: Cancel immediately vs at period end
+  
+>         Returns:
+>             Dict with cancellation status
+>         """
+!         try:
+!             subscription = self._get_user_addon_subscription(user_id, addon_code)
+!             if not subscription:
+!                 raise AddonSubscriptionNotFoundError(addon_code=addon_code)
+  
+!             if subscription["status"] != AddonSubscriptionStatus.ACTIVE.value:
+!                 return {
+!                     "success": False,
+!                     "reason": "Subscription not active",
+!                     "current_status": subscription["status"],
+!                 }
+  
+              # Cancel in Stripe (or mock)
+!             if subscription.get("stripe_subscription_id"):
+!                 if immediate:
+!                     self.stripe_service.delete_subscription(
+!                         subscription["stripe_subscription_id"]
+!                     )
+!                 else:
+!                     self.stripe_service.update_subscription(
+!                         subscription["stripe_subscription_id"],
+!                         cancel_at_period_end=True,
+!                     )
+  
+              # Update local record
+!             subscription["status"] = (
+!                 AddonSubscriptionStatus.CANCELLED.value
+!                 if immediate
+!                 else "cancel_at_period_end"
+!             )
+!             subscription["cancelled_at"] = datetime.now(timezone.utc)
+  
+!             logger.info(
+!                 f"Cancelled subscription for user {user_id}, addon {addon_code}"
+!             )
+  
+!             return {
+!                 "success": True,
+!                 "subscription_id": subscription["id"],
+!                 "cancelled_immediately": immediate,
+!                 "message": "Subscription cancelled successfully",
+!             }
+  
+!         except Exception as e:
+!             logger.error(f"Failed to cancel subscription: {str(e)}")
+!             raise AddonBillingError(f"Failed to cancel subscription: {str(e)}")
+  
+>     def get_user_subscriptions(
+>         self, user_id: str, active_only: bool = True
+>     ) -> List[Dict[str, Any]]:
+>         """Get all subscriptions for a user.
+  
+>         Args:
+>             user_id: User ID
+>             active_only: Only return active subscriptions
+  
+>         Returns:
+>             List of subscription dicts
+>         """
+          # In full implementation, query from database
+          # For now, return empty list as mock
+!         subscriptions = []
+  
+!         if active_only:
+!             subscriptions = [
+!                 sub
+!                 for sub in subscriptions
+!                 if sub.get("status") == AddonSubscriptionStatus.ACTIVE.value
+!             ]
+  
+!         return subscriptions
+  
+>     def _get_user_addon_subscription(
+>         self, user_id: str, addon_code: str
+>     ) -> Optional[Dict[str, Any]]:
+>         """Get specific addon subscription for user."""
+          # In full implementation, query database
+          # For now, return None as mock
+!         return None
+  
+>     def check_feature_access(self, user_id: str, feature: str) -> bool:
+>         """Check if user has access to specific feature.
+  
+>         Args:
+>             user_id: User ID
+>             feature: Feature name to check
+  
+>         Returns:
+>             True if user has access, False otherwise
+>         """
+!         try:
+!             user_subscriptions = self.get_user_subscriptions(user_id, active_only=True)
+  
+!             for subscription in user_subscriptions:
+!                 addon = self.get_addon(subscription["addon_code"])
+!                 if addon and feature in addon.get("features", []):
+!                     return True
+  
+!             return False
+  
+!         except Exception as e:
+!             logger.error(f"Error checking feature access: {str(e)}")
+!             return False
+  
+>     def track_usage(
+>         self, user_id: str, addon_code: str, usage_type: str, amount: int = 1
+>     ) -> Dict[str, Any]:
+>         """Track usage for an addon.
+  
+>         Args:
+>             user_id: User ID
+>             addon_code: Addon code
+>             usage_type: Type of usage (e.g., "api_calls", "sms_sent")
+>             amount: Amount to increment
+  
+>         Returns:
+>             Dict with tracking results
+>         """
+!         try:
+!             subscription = self._get_user_addon_subscription(user_id, addon_code)
+!             if not subscription:
+!                 raise AddonSubscriptionNotFoundError(addon_code=addon_code)
+  
+!             addon = self.get_addon(addon_code)
+!             if not addon:
+!                 raise AddonNotFoundError(addon_code)
+  
+              # Get current usage (mock implementation)
+!             current_usage = subscription.get("current_usage", {})
+!             current_usage[usage_type] = current_usage.get(usage_type, 0) + amount
+  
+              # Check limits
+!             limits = addon.get("limits", {})
+!             limit_key = self._get_limit_key(usage_type)
+  
+!             if limit_key in limits:
+!                 limit = limits[limit_key]
+!                 if current_usage[usage_type] > limit:
+!                     raise UsageLimitExceededError(
+!                         addon_code=addon_code,
+!                         usage_type=usage_type,
+!                         limit=limit,
+!                         current=current_usage[usage_type],
+!                     )
+  
+              # Update subscription usage
+!             subscription["current_usage"] = current_usage
+!             subscription["updated_at"] = datetime.now(timezone.utc)
+  
+!             logger.info(f"Tracked usage for {user_id}: {usage_type}+{amount}")
+  
+!             return {
+!                 "success": True,
+!                 "usage_type": usage_type,
+!                 "amount": amount,
+!                 "total_usage": current_usage[usage_type],
+!                 "limit": limits.get(limit_key, "unlimited"),
+!             }
+  
+!         except Exception as e:
+!             logger.error(f"Failed to track usage: {str(e)}")
+!             raise
+  
+>     def _get_limit_key(self, usage_type: str) -> str:
+>         """Map usage type to limit key."""
+!         mapping = {
+!             "api_calls": "rate_limit_per_minute",
+!             "sms_sent": "max_sms_per_month",
+!             "reports": "max_reports_per_month",
+!             "webhooks": "events_per_day",
+!         }
+!         return mapping.get(usage_type, usage_type)
+  
+>     def get_subscription_analytics(self, user_id: str) -> Dict[str, Any]:
+>         """Get analytics for user's subscriptions.
+  
+>         Args:
+>             user_id: User ID
+  
+>         Returns:
+>             Dict with subscription analytics
+>         """
+!         try:
+!             subscriptions = self.get_user_subscriptions(user_id, active_only=False)
+  
+!             analytics = {
+!                 "total_subscriptions": len(subscriptions),
+!                 "active_subscriptions": len(
+!                     [
+!                         s
+!                         for s in subscriptions
+!                         if s.get("status") == AddonSubscriptionStatus.ACTIVE.value
+!                     ]
+!                 ),
+!                 "monthly_spend": Decimal("0"),
+!                 "yearly_spend": Decimal("0"),
+!                 "features_enabled": [],
+!                 "usage_summary": {},
+!             }
+  
+!             for subscription in subscriptions:
+!                 if subscription.get("status") == AddonSubscriptionStatus.ACTIVE.value:
+!                     cycle = subscription.get("billing_cycle", "monthly")
+!                     price = Decimal(str(subscription.get("price", 0)))
+  
+!                     if cycle == "monthly":
+!                         analytics["monthly_spend"] += price
+!                     else:
+!                         analytics["yearly_spend"] += price
+  
+                      # Aggregate features
+!                     features = subscription.get("features_enabled", [])
+!                     analytics["features_enabled"].extend(features)
+  
+              # Remove duplicate features
+!             analytics["features_enabled"] = list(set(analytics["features_enabled"]))
+  
+!             return analytics
+  
+!         except Exception as e:
+!             logger.error(f"Failed to get subscription analytics: {str(e)}")
+!             return {
+!                 "error": str(e),
+!                 "total_subscriptions": 0,
+!                 "active_subscriptions": 0,
+!                 "monthly_spend": Decimal("0"),
+!                 "yearly_spend": Decimal("0"),
+!             }
+  
+  
+  # Global service instance (for compatibility)
+> addon_service = AddonService()

@@ -1,0 +1,651 @@
+  #!/usr/bin/env python3
+> """
+> Disaster Recovery Module - Manages disaster recovery operations for AgentTradr
+> """
+  
+> from .backup_manager import BackupManager
+> from datetime import datetime, timezone
+> from enum import Enum
+> from pathlib import Path
+> from typing import Dict, List, Optional, Tuple, Any
+> import logging
+> import psutil
+> import requests
+> import shutil
+> import sqlite3
+> import subprocess
+> import sys
+> import time
+  
+> logger = logging.getLogger(__name__)
+  
+  
+> class RecoveryType(Enum):
+>     """Types of recovery operations"""
+>     FULL = "full"  # Complete system recovery
+>     DATABASE = "database"  # Database only
+>     CONFIGURATION = "configuration"  # Config files only
+>     STRATEGIES = "strategies"  # Trading strategies
+>     POINT_IN_TIME = "point_in_time"  # Restore to specific time
+  
+  
+> class RecoveryStatus(Enum):
+>     """Recovery operation status"""
+>     PENDING = "pending"
+>     IN_PROGRESS = "in_progress"
+>     VALIDATING = "validating"
+>     COMPLETED = "completed"
+>     FAILED = "failed"
+>     ROLLED_BACK = "rolled_back"
+  
+  
+> class DisasterRecoveryManager:
+>     """Manages disaster recovery operations"""
+  
+>     def __init__(
+>         self,
+>         backup_manager: BackupManager,
+>         app_root: Path = Path("/home/purpledev/agenttradr")
+>     ):
+>         """
+>         Initialize disaster recovery manager
+  
+>         Args:
+>             backup_manager: Cloud backup manager instance
+>             app_root: Application root directory
+>         """
+>         self.backup_manager = backup_manager
+>         self.app_root = app_root
+  
+          # Recovery paths
+>         self.recovery_dir = Path("/tmp/agenttradr_recovery")
+>         self.recovery_dir.mkdir(exist_ok=True, parents=True)
+  
+          # Recovery log
+>         self.recovery_log = []
+>         self.recovery_start_time = None
+>         self.recovery_end_time = None
+  
+          # Service configuration
+>         self.service_name = "agenttradr"
+>         self.health_check_url = "http://localhost:8000/health"
+  
+>     def perform_recovery(
+>         self,
+>         recovery_type: RecoveryType,
+>         backup_id: Optional[str] = None,
+>         target_time: Optional[datetime] = None,
+>         dry_run: bool = False
+>     ) -> Tuple[bool, Dict[str, Any]]:
+>         """
+>         Perform disaster recovery
+  
+>         Args:
+>             recovery_type: Type of recovery to perform
+>             backup_id: Specific backup to restore (if None, uses latest)
+>             target_time: Target time for point-in-time recovery
+>             dry_run: Simulate recovery without making changes
+  
+>         Returns:
+>             Tuple of (success, recovery_report)
+>         """
+!         self.recovery_start_time = datetime.now()
+!         self._log(
+!             "Starting disaster recovery",
+!             {"type": recovery_type.value, "dry_run": dry_run}
+!         )
+  
+!         try:
+              # Step 1: Find appropriate backup
+!             if not backup_id:
+!                 backup_id = self._find_best_backup(recovery_type, target_time)
+!             if not backup_id:
+!                 return False, {"error": "No suitable backup found"}
+  
+!             self._log(f"Selected backup: {backup_id}")
+  
+              # Step 2: Verify backup integrity
+!             valid, msg = self.backup_manager.verify_backup(backup_id)
+!             if not valid:
+!                 return False, {"error": f"Backup verification failed: {msg}"}
+  
+!             self._log("Backup verified successfully")
+  
+              # Step 3: Stop services
+!             if not dry_run:
+!                 self._stop_services()
+  
+              # Step 4: Create safety backup
+!             if not dry_run:
+!                 self._create_safety_backup()
+  
+              # Step 5: Perform recovery based on type
+!             if recovery_type == RecoveryType.FULL:
+!                 success = self._recover_full_system(backup_id, dry_run)
+!             elif recovery_type == RecoveryType.DATABASE:
+!                 success = self._recover_database(backup_id, dry_run)
+!             elif recovery_type == RecoveryType.CONFIGURATION:
+!                 success = self._recover_configuration(backup_id, dry_run)
+!             elif recovery_type == RecoveryType.STRATEGIES:
+!                 success = self._recover_strategies(backup_id, dry_run)
+!             elif recovery_type == RecoveryType.POINT_IN_TIME:
+!                 success = self._recover_point_in_time(backup_id, target_time, dry_run)
+!             else:
+!                 return False, {"error": f"Unknown recovery type: {recovery_type}"}
+  
+!             if not success:
+!                 if not dry_run:
+!                     self._rollback_recovery()
+!                 return False, {"error": "Recovery failed", "log": self.recovery_log}
+  
+              # Step 6: Validate recovery
+!             if not dry_run:
+!                 if not self._validate_recovery():
+!                     self._rollback_recovery()
+!                     return False, {
+!                         "error": "Recovery validation failed",
+!                         "log": self.recovery_log
+!                     }
+  
+              # Step 7: Start services
+!             if not dry_run:
+!                 self._start_services()
+  
+              # Step 8: Perform health checks
+!             if not dry_run:
+!                 if not self._health_check():
+!                     self._rollback_recovery()
+!                     return False, {
+!                         "error": "Health check failed",
+!                         "log": self.recovery_log
+!                     }
+  
+!             self.recovery_end_time = datetime.now()
+!             recovery_time = (
+!                 self.recovery_end_time - self.recovery_start_time
+!             ).total_seconds()
+  
+!             report = {
+!                 "success": True,
+!                 "recovery_type": recovery_type.value,
+!                 "backup_id": backup_id,
+!                 "recovery_time_seconds": recovery_time,
+!                 "rto_met": recovery_time < 3600,  # RTO: 1 hour
+!                 "log": self.recovery_log
+!             }
+  
+!             self._log(f"Recovery completed successfully in {recovery_time:.2f} seconds")
+  
+!             return True, report
+  
+!         except Exception as e:
+!             self._log(f"Recovery error: {e}", level="error")
+!             if not dry_run:
+!                 self._rollback_recovery()
+  
+!             return False, {"error": str(e), "log": self.recovery_log}
+  
+>     def _find_best_backup(
+>         self, recovery_type: RecoveryType, target_time: Optional[datetime]
+>     ) -> Optional[str]:
+>         """Find the best backup for recovery"""
+!         backups = self.backup_manager.list_backups()
+!         if not backups:
+!             return None
+  
+          # Filter by type if needed
+!         if recovery_type == RecoveryType.DATABASE:
+!             backups = [
+!                 b for b in backups if b.get("tags", {}).get("type") == "database"
+!             ]
+!         elif recovery_type == RecoveryType.CONFIGURATION:
+!             backups = [
+!                 b for b in backups if b.get("tags", {}).get("type") == "configuration"
+!             ]
+!         elif recovery_type == RecoveryType.STRATEGIES:
+!             backups = [
+!                 b for b in backups if b.get("tags", {}).get("type") == "strategies"
+!             ]
+  
+!         if not backups:
+!             return None
+  
+          # Find closest to target time
+!         if target_time:
+!             def time_diff(backup):
+!                 backup_time = datetime.fromisoformat(backup["timestamp"])
+!                 return abs((backup_time - target_time).total_seconds())
+  
+!             backups.sort(key=time_diff)
+  
+!         return backups[0]["backup_id"]
+  
+>     def _recover_full_system(self, backup_id: str, dry_run: bool) -> bool:
+>         """Perform full system recovery"""
+!         self._log("Performing full system recovery")
+          
+!         if dry_run:
+!             self._log("[DRY RUN] Would restore full system from backup")
+!             return True
+  
+!         try:
+              # Download and restore backup
+!             restore_path = self.recovery_dir / "full_restore"
+!             success, msg = self.backup_manager.restore_backup(
+!                 backup_id, restore_path, verify=True
+!             )
+              
+!             if not success:
+!                 self._log(f"Restore failed: {msg}", level="error")
+!                 return False
+  
+              # Copy restored files to application directory
+              # (Preserve certain runtime files)
+!             preserve_files = [".env", "logs", "tmp", "__pycache__"]
+  
+!             for item in restore_path.iterdir():
+!                 if item.name not in preserve_files:
+!                     dest = self.app_root / item.name
+  
+!                     if dest.exists():
+!                         if dest.is_dir():
+!                             shutil.rmtree(dest)
+!                         else:
+!                             dest.unlink()
+  
+!                     shutil.move(str(item), str(dest))
+  
+!             self._log("Full system recovery completed")
+!             return True
+  
+!         except Exception as e:
+!             self._log(f"Full recovery error: {e}", level="error")
+!             return False
+  
+>     def _recover_database(self, backup_id: str, dry_run: bool) -> bool:
+>         """Recover database only"""
+!         self._log("Performing database recovery")
+          
+!         if dry_run:
+!             self._log("[DRY RUN] Would restore database from backup")
+!             return True
+  
+!         try:
+              # Download and restore backup
+!             restore_path = self.recovery_dir / "db_restore"
+!             success, msg = self.backup_manager.restore_backup(
+!                 backup_id, restore_path, verify=True
+!             )
+              
+!             if not success:
+!                 self._log(f"Database restore failed: {msg}", level="error")
+!                 return False
+  
+              # Find database file in restore
+!             db_file = None
+!             for file in restore_path.rglob("*.db"):
+!                 db_file = file
+!                 break
+  
+!             if not db_file:
+!                 self._log("No database file found in backup", level="error")
+!                 return False
+  
+              # Replace current database
+!             current_db = self.app_root / "agenttradr.db"
+!             if current_db.exists():
+!                 backup_db = current_db.with_suffix(".db.recovery_backup")
+!                 shutil.copy2(current_db, backup_db)
+  
+!             shutil.copy2(db_file, current_db)
+  
+!             self._log("Database recovery completed")
+!             return True
+  
+!         except Exception as e:
+!             self._log(f"Database recovery error: {e}", level="error")
+!             return False
+  
+>     def _recover_configuration(self, backup_id: str, dry_run: bool) -> bool:
+>         """Recover configuration files only"""
+!         self._log("Performing configuration recovery")
+          
+!         if dry_run:
+!             self._log("[DRY RUN] Would restore configuration from backup")
+!             return True
+  
+!         try:
+              # Download and restore backup
+!             restore_path = self.recovery_dir / "config_restore"
+!             success, msg = self.backup_manager.restore_backup(
+!                 backup_id, restore_path, verify=True
+!             )
+              
+!             if not success:
+!                 self._log(f"Config restore failed: {msg}", level="error")
+!                 return False
+  
+              # Restore config files
+!             config_patterns = ["*.json", "*.yaml", "*.yml", "*.ini", "*.conf"]
+  
+!             for pattern in config_patterns:
+!                 for config_file in restore_path.rglob(pattern):
+!                     relative_path = config_file.relative_to(restore_path)
+!                     dest_path = self.app_root / relative_path
+  
+!                     dest_path.parent.mkdir(parents=True, exist_ok=True)
+!                     shutil.copy2(config_file, dest_path)
+!                     self._log(f"Restored config: {relative_path}")
+  
+!             self._log("Configuration recovery completed")
+!             return True
+  
+!         except Exception as e:
+!             self._log(f"Configuration recovery error: {e}", level="error")
+!             return False
+  
+>     def _recover_strategies(self, backup_id: str, dry_run: bool) -> bool:
+>         """Recover trading strategies only"""
+!         self._log("Performing strategies recovery")
+          
+!         if dry_run:
+!             self._log("[DRY RUN] Would restore strategies from backup")
+!             return True
+  
+!         try:
+              # Download and restore backup
+!             restore_path = self.recovery_dir / "strategies_restore"
+!             success, msg = self.backup_manager.restore_backup(
+!                 backup_id, restore_path, verify=True
+!             )
+              
+!             if not success:
+!                 self._log(f"Strategies restore failed: {msg}", level="error")
+!                 return False
+  
+              # Restore strategy files
+!             strategies_dir = restore_path / "strategies"
+!             if strategies_dir.exists():
+!                 dest_dir = self.app_root / "strategies"
+  
+!                 if dest_dir.exists():
+!                     backup_dir = dest_dir.with_suffix(".recovery_backup")
+!                     shutil.move(str(dest_dir), str(backup_dir))
+  
+!                 shutil.move(str(strategies_dir), str(dest_dir))
+  
+!             self._log("Strategies recovery completed")
+!             return True
+  
+!         except Exception as e:
+!             self._log(f"Strategies recovery error: {e}", level="error")
+!             return False
+  
+>     def _recover_point_in_time(
+>         self, backup_id: str, target_time: datetime, dry_run: bool
+>     ) -> bool:
+>         """Perform point-in-time recovery"""
+!         self._log(f"Performing point-in-time recovery to {target_time}")
+  
+          # This would require transaction logs or incremental backups
+          # For now, we'll use the closest full backup
+!         return self._recover_full_system(backup_id, dry_run)
+  
+>     def _create_safety_backup(self):
+>         """Create a safety backup before recovery"""
+!         self._log("Creating safety backup")
+  
+!         try:
+              # Create quick local backup
+!             safety_dir = (
+!                 self.recovery_dir
+!                 / f"safety_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+!             )
+!             safety_dir.mkdir(parents=True)
+  
+              # Backup critical files
+!             critical_files = ["agenttradr.db", ".env", "config", "strategies"]
+  
+!             for item in critical_files:
+!                 source = self.app_root / item
+!                 if source.exists():
+!                     dest = safety_dir / item
+!                     if source.is_dir():
+!                         shutil.copytree(source, dest)
+!                     else:
+!                         shutil.copy2(source, dest)
+  
+!             self._log(f"Safety backup created: {safety_dir}")
+  
+!         except Exception as e:
+!             self._log(f"Safety backup warning: {e}", level="warning")
+  
+>     def _stop_services(self):
+>         """Stop application services"""
+!         self._log("Stopping services")
+  
+!         try:
+              # Try systemctl first
+!             result = subprocess.run(
+!                 ["systemctl", "stop", self.service_name],
+!                 capture_output=True,
+!                 text=True
+!             )
+  
+!             if result.returncode != 0:
+                  # Try killing process directly
+!                 for proc in psutil.process_iter(["pid", "name"]):
+!                     if "agenttradr" in proc.info["name"].lower():
+!                         proc.terminate()
+!                         self._log(f"Terminated process: {proc.info['pid']}")
+  
+!             self._log("Services stopped")
+  
+!         except Exception as e:
+!             self._log(f"Error stopping services: {e}", level="warning")
+  
+>     def _start_services(self):
+>         """Start application services"""
+!         self._log("Starting services")
+  
+!         try:
+              # Try systemctl first
+!             result = subprocess.run(
+!                 ["systemctl", "start", self.service_name],
+!                 capture_output=True,
+!                 text=True
+!             )
+  
+!             if result.returncode != 0:
+                  # Try starting directly
+!                 start_script = self.app_root / "start.sh"
+!                 if start_script.exists():
+!                     subprocess.Popen([str(start_script)])
+!                 else:
+                      # Start Python application
+!                     subprocess.Popen(
+!                         [sys.executable, str(self.app_root / "src" / "main.py")]
+!                     )
+  
+!             self._log("Services started")
+  
+!         except Exception as e:
+!             self._log(f"Error starting services: {e}", level="error")
+  
+>     def _validate_recovery(self) -> bool:
+>         """Validate recovery was successful"""
+>         self._log("Validating recovery")
+  
+>         try:
+              # Check critical files exist
+>             critical_files = [
+>                 self.app_root / "agenttradr.db",
+>                 self.app_root / "src" / "main.py"
+>             ]
+  
+>             for file in critical_files:
+>                 if not file.exists():
+>                     self._log(f"Critical file missing: {file}", level="error")
+>                     return False
+  
+              # Check database integrity
+>             db_path = self.app_root / "agenttradr.db"
+>             if db_path.exists():
+>                 conn = sqlite3.connect(db_path)
+>                 cursor = conn.execute("PRAGMA integrity_check")
+>                 result = cursor.fetchone()[0]
+>                 if result != "ok":
+>                     self._log(
+>                         f"Database integrity check failed: {result}", level="error"
+>                     )
+>                     return False
+  
+>             self._log("Recovery validation passed")
+>             return True
+  
+>         except Exception as e:
+>             self._log(f"Validation error: {e}", level="error")
+>             return False
+  
+>     def _health_check(self, timeout: int = 60) -> bool:
+>         """Perform application health check"""
+!         self._log("Performing health check")
+  
+!         start_time = datetime.now()
+  
+!         while (datetime.now() - start_time).total_seconds() < timeout:
+!             try:
+!                 response = requests.get(self.health_check_url, timeout=5)
+!                 if response.status_code == 200:
+!                     self._log("Health check passed")
+!                     return True
+!             except Exception:
+!                 pass
+!             time.sleep(5)
+  
+!         self._log("Health check failed - timeout", level="error")
+!         return False
+  
+>     def _rollback_recovery(self):
+>         """Rollback failed recovery"""
+!         self._log("Rolling back recovery", level="warning")
+  
+!         try:
+              # Find most recent safety backup
+!             safety_backups = list(self.recovery_dir.glob("safety_backup_*"))
+!             if safety_backups:
+!                 latest_backup = max(safety_backups, key=lambda x: x.stat().st_mtime)
+  
+                  # Restore from safety backup
+!                 for item in latest_backup.iterdir():
+!                     dest = self.app_root / item.name
+  
+!                     if dest.exists():
+!                         if dest.is_dir():
+!                             shutil.rmtree(dest)
+!                         else:
+!                             dest.unlink()
+  
+!                     if item.is_dir():
+!                         shutil.copytree(item, dest)
+!                     else:
+!                         shutil.copy2(item, dest)
+  
+!                 self._log("Rollback completed")
+!             else:
+!                 self._log("No safety backup found for rollback", level="error")
+  
+!         except Exception as e:
+!             self._log(f"Rollback error: {e}", level="error")
+  
+>     def _log(self, message: str, data: Optional[Dict] = None, level: str = "info"):
+>         """Log recovery event"""
+>         event = {
+>             "timestamp": datetime.now().isoformat(),
+>             "level": level,
+>             "message": message,
+>             "data": data
+>         }
+  
+>         self.recovery_log.append(event)
+  
+>         if level == "error":
+>             logger.error(message)
+>         elif level == "warning":
+!             logger.warning(message)
+>         else:
+>             logger.info(message)
+  
+>     def test_recovery_plan(self) -> Dict[str, Any]:
+>         """Test disaster recovery plan"""
+!         self._log("Testing disaster recovery plan")
+  
+!         tests = []
+  
+          # Test 1: Backup availability
+!         backups = self.backup_manager.list_backups()
+!         tests.append(
+!             {
+!                 "test": "Backup availability",
+!                 "passed": len(backups) > 0,
+!                 "details": f"Found {len(backups)} backups"
+!             }
+!         )
+  
+          # Test 2: Latest backup age
+!         if backups:
+!             latest_backup = backups[0]
+!             backup_time = datetime.fromisoformat(latest_backup["timestamp"])
+!             age_hours = (datetime.now(timezone.utc) - backup_time).total_seconds() / 3600
+!             tests.append(
+!                 {
+!                     "test": "Backup freshness",
+!                     "passed": age_hours < 24,
+!                     "details": f"Latest backup is {age_hours:.1f} hours old"
+!                 }
+!             )
+  
+          # Test 3: Recovery simulation
+!         success, report = self.perform_recovery(RecoveryType.DATABASE, dry_run=True)
+!         tests.append(
+!             {
+!                 "test": "Recovery simulation",
+!                 "passed": success,
+!                 "details": "Dry run recovery test"
+!             }
+!         )
+  
+          # Calculate RTO/RPO
+!         rto_estimate = 30  # minutes
+!         rpo_estimate = 4 if backups else 999  # hours
+  
+!         return {
+!             "tests": tests,
+!             "all_passed": all(t["passed"] for t in tests),
+!             "rto_estimate_minutes": rto_estimate,
+!             "rpo_estimate_hours": rpo_estimate,
+!             "recommendations": self._get_dr_recommendations(tests)
+!         }
+  
+>     def _get_dr_recommendations(self, tests: List[Dict]) -> List[str]:
+>         """Get disaster recovery recommendations"""
+!         recommendations = []
+  
+!         if not tests[0]["passed"]:
+!             recommendations.append(
+!                 "No backups found - configure backup schedule immediately"
+!             )
+!         if len(tests) > 1 and not tests[1]["passed"]:
+!             recommendations.append("Latest backup is stale - increase backup frequency")
+!         if len(tests) > 2 and not tests[2]["passed"]:
+!             recommendations.append(
+!                 "Recovery simulation failed - review recovery procedures"
+!             )
+!         if not recommendations:
+!             recommendations.append("Disaster recovery plan is healthy")
+  
+!         return recommendations
+  
+  
+  # Export main classes
+> __all__ = ["DisasterRecoveryManager", "RecoveryType", "RecoveryStatus"]

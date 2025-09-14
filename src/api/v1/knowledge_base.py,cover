@@ -1,0 +1,667 @@
+> """
+> Knowledge Base API Endpoints - FEAT-005
+> RESTful API for knowledge base articles and FAQ management
+> """
+  
+> import logging
+> from datetime import datetime, timezone
+> from typing import Optional, Dict, Any, List
+> from enum import Enum
+  
+> from fastapi import APIRouter, Depends, HTTPException, status, Query
+> from pydantic import BaseModel, Field, ConfigDict
+> from sqlalchemy.orm import Session
+  
+  # Mock imports - replace with actual imports
+> try:
+>     from ...auth.dependencies import get_current_user, require_admin
+>     from ...database.models import User, KnowledgeBaseArticle, KnowledgeBaseCategory, FAQ
+!     from ...database.connection import get_db_session, get_db
+> except ImportError:
+>     class User:
+>         def __init__(self, **kwargs):
+!             for k, v in kwargs.items():
+!                 setattr(self, k, v)
+  
+>     def get_current_user():
+!         return User(id="test-user", role="admin", email="admin@test.com")
+  
+>     def get_db_session():
+!         return None
+      
+>     def require_admin():
+!         return get_current_user()
+      
+>     def get_db():
+!         return None
+      
+      # Mock classes when imports fail
+>     class KnowledgeBaseArticle:
+>         pass
+      
+>     class KnowledgeBaseCategory:
+>         pass
+      
+>     class FAQ:
+>         pass
+  
+> logger = logging.getLogger(__name__)
+  
+> router = APIRouter(prefix="/api/v1/knowledge-base", tags=["Knowledge Base"])
+  
+  
+  # Enums
+> class ArticleCategory(str, Enum):
+>     GENERAL = "general"
+>     TRADING = "trading"
+>     TECHNICAL = "technical"
+>     BILLING = "billing"
+>     API = "api"
+>     SECURITY = "security"
+  
+  
+> class ArticleStatus(str, Enum):
+>     DRAFT = "draft"
+>     PUBLISHED = "published"
+>     ARCHIVED = "archived"
+  
+  
+  # Request/Response models
+> class ArticleCreateRequest(BaseModel):
+>     """Request model for creating an article"""
+  
+>     title: str = Field(..., min_length=5, max_length=200)
+>     content: str = Field(..., min_length=50)
+>     category: ArticleCategory
+>     tags: Optional[List[str]] = Field(default_factory=list)
+>     is_faq: bool = Field(default=False)
+>     status: ArticleStatus = Field(default=ArticleStatus.DRAFT)
+  
+  
+> class ArticleUpdateRequest(BaseModel):
+>     """Request model for updating an article"""
+  
+>     title: Optional[str] = Field(None, min_length=5, max_length=200)
+>     content: Optional[str] = Field(None, min_length=50)
+>     category: Optional[ArticleCategory] = None
+>     tags: Optional[List[str]] = None
+>     is_faq: Optional[bool] = None
+>     status: Optional[ArticleStatus] = None
+  
+  
+> class CategoryResponse(BaseModel):
+>     """Response model for knowledge base categories"""
+>     id: int
+>     name: str
+>     slug: str
+>     description: Optional[str]
+>     parent_id: Optional[int]
+>     sort_order: int
+>     is_public: bool
+>     is_active: bool
+>     created_at: datetime
+>     updated_at: datetime
+  
+>     model_config = ConfigDict(from_attributes=True)
+  
+  
+> class ArticleResponse(BaseModel):
+>     """Response model for knowledge base articles"""
+>     id: int
+>     title: str
+>     content: str
+>     category_id: int
+>     author_id: int
+>     tags: List[str]
+>     is_faq: bool
+>     status: str
+>     views: int
+>     created_at: datetime
+>     updated_at: datetime
+>     author_id: str
+  
+  
+> class ArticleListResponse(BaseModel):
+>     """Response model for listing articles"""
+  
+>     articles: List[Dict[str, Any]]
+>     total: int
+>     page: int
+>     page_size: int
+  
+  
+> class SearchResponse(BaseModel):
+>     """Response model for search results"""
+  
+>     results: List[Dict[str, Any]]
+>     total: int
+>     query: str
+  
+  
+> class FAQResponse(BaseModel):
+>     """Response model for FAQ entries"""
+>     id: int
+>     question: str
+>     answer: str
+>     category_id: int
+>     author_id: int
+>     is_published: bool
+>     view_count: int
+>     sort_order: int
+>     created_at: datetime
+>     updated_at: datetime
+      
+>     model_config = ConfigDict(from_attributes=True)
+  
+  
+> class FAQCreateRequest(BaseModel):
+>     """Request model for creating an FAQ"""
+>     question: str = Field(..., min_length=5, max_length=500)
+>     answer: str = Field(..., min_length=20)
+>     category_id: int
+>     is_published: bool = Field(default=False)
+  
+  
+  # Mock knowledge base service
+> class MockKnowledgeBaseService:
+>     def __init__(self):
+>         self.articles = {}
+>         self.next_id = 1
+  
+          # Add some sample articles
+>         self._add_sample_articles()
+  
+>     def _add_sample_articles(self):
+>         sample_articles = [
+>             {
+>                 "title": "Getting Started with AgentTradr",
+>                 "content": "Welcome to AgentTradr! This guide will help you get started with our platform...",
+>                 "category": ArticleCategory.GENERAL,
+>                 "tags": ["getting-started", "tutorial"],
+>                 "is_faq": True,
+>             },
+>             {
+>                 "title": "API Authentication",
+>                 "content": "Learn how to authenticate with the AgentTradr API using JWT tokens...",
+>                 "category": ArticleCategory.API,
+>                 "tags": ["api", "authentication", "jwt"],
+>                 "is_faq": False,
+>             },
+>             {
+>                 "title": "Trading Strategy Basics",
+>                 "content": "Understanding the fundamentals of trading strategies in AgentTradr...",
+>                 "category": ArticleCategory.TRADING,
+>                 "tags": ["trading", "strategies", "basics"],
+>                 "is_faq": True,
+>             },
+>         ]
+  
+>         for article_data in sample_articles:
+>             article_id = str(self.next_id)
+>             self.articles[article_id] = {
+>                 "id": article_id,
+>                 "title": article_data["title"],
+>                 "content": article_data["content"],
+>                 "category": article_data["category"].value,
+>                 "tags": article_data["tags"],
+>                 "is_faq": article_data["is_faq"],
+>                 "status": ArticleStatus.PUBLISHED.value,
+>                 "views": 0,
+>                 "created_at": datetime.now(timezone.utc),
+>                 "updated_at": datetime.now(timezone.utc),
+>                 "author_id": "admin-001",
+>             }
+>             self.next_id += 1
+  
+>     def create_article(self, article_data: dict, author_id: str) -> dict:
+!         article_id = str(self.next_id)
+!         article = {
+!             "id": article_id,
+!             "title": article_data["title"],
+!             "content": article_data["content"],
+!             "category": article_data["category"],
+!             "tags": article_data.get("tags", []),
+!             "is_faq": article_data.get("is_faq", False),
+!             "status": article_data.get("status", ArticleStatus.DRAFT.value),
+!             "views": 0,
+!             "created_at": datetime.now(timezone.utc),
+!             "updated_at": datetime.now(timezone.utc),
+!             "author_id": author_id,
+!         }
+!         self.articles[article_id] = article
+!         self.next_id += 1
+!         return article
+  
+>     def get_article(self, article_id: str) -> Optional[dict]:
+!         article = self.articles.get(article_id)
+!         if article:
+              # Increment view count
+!             article["views"] += 1
+!         return article
+  
+>     def list_articles(
+>         self,
+>         category: Optional[str] = None,
+>         is_faq: Optional[bool] = None,
+>         status: Optional[str] = None,
+>     ) -> List[dict]:
+!         articles = list(self.articles.values())
+!         if category:
+!             articles = [a for a in articles if a["category"] == category]
+!         if is_faq is not None:
+!             articles = [a for a in articles if a["is_faq"] == is_faq]
+!         if status:
+!             articles = [a for a in articles if a["status"] == status]
+  
+!         return articles
+  
+>     def search_articles(self, query: str) -> List[dict]:
+>         query_lower = query.lower()
+>         results = []
+  
+>         for article in self.articles.values():
+>             if (
+>                 query_lower in article["title"].lower()
+>                 or query_lower in article["content"].lower()
+>                 or any(query_lower in tag.lower() for tag in article["tags"])
+>             ):
+>                 results.append(article)
+  
+>         return results
+  
+>     def update_article(self, article_id: str, updates: dict) -> Optional[dict]:
+!         if article_id not in self.articles:
+!             return None
+  
+!         article = self.articles[article_id]
+!         for key, value in updates.items():
+!             if value is not None:
+!                 article[key] = value
+  
+!         article["updated_at"] = datetime.now(timezone.utc)
+!         return article
+  
+>     def delete_article(self, article_id: str) -> bool:
+!         if article_id in self.articles:
+!             del self.articles[article_id]
+!             return True
+!         return False
+  
+  
+  # Global knowledge base service
+> kb_service = MockKnowledgeBaseService()
+  
+  
+> @router.post("/articles", response_model=ArticleResponse)
+> async def create_article(
+>     request: ArticleCreateRequest,
+>     current_user: User = Depends(get_current_user),
+>     db: Session = Depends(get_db_session),
+> ):
+>     """
+>     Create a new knowledge base article (admin only).
+>     """
+!     if current_user.role not in ["admin"]:
+!         raise HTTPException(
+!             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+!         )
+  
+!     try:
+!         article_data = {
+!             "title": request.title,
+!             "content": request.content,
+!             "category": request.category.value,
+!             "tags": request.tags,
+!             "is_faq": request.is_faq,
+!             "status": request.status.value,
+!         }
+  
+!         article = kb_service.create_article(article_data, current_user.id)
+  
+!         logger.info(f"Article created: {article['title']} by {current_user.id}")
+  
+!         return ArticleResponse(**article)
+  
+!     except Exception as e:
+!         logger.error(f"Failed to create article: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail=f"Failed to create article: {str(e)}",
+!         )
+  
+  
+> @router.get("/articles", response_model=ArticleListResponse)
+> async def list_articles(
+>     category: Optional[str] = Query(None, description="Filter by category"),
+>     is_faq: Optional[bool] = Query(None, description="Filter FAQ articles"),
+>     status: Optional[str] = Query(None, description="Filter by status"),
+>     page: int = Query(1, ge=1),
+>     page_size: int = Query(20, ge=1, le=100),
+> ):
+>     """
+>     List knowledge base articles with filtering.
+>     """
+!     try:
+!         articles = kb_service.list_articles(category, is_faq, status)
+  
+          # Pagination
+!         start = (page - 1) * page_size
+!         end = start + page_size
+!         paginated_articles = articles[start:end]
+  
+          # Convert datetime objects to ISO strings
+!         for article in paginated_articles:
+!             article["created_at"] = article["created_at"].isoformat()
+!             article["updated_at"] = article["updated_at"].isoformat()
+  
+!         return ArticleListResponse(
+!             articles=paginated_articles,
+!             total=len(articles),
+!             page=page,
+!             page_size=page_size,
+!         )
+  
+!     except Exception as e:
+!         logger.error(f"Failed to list articles: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail=f"Failed to list articles: {str(e)}",
+!         )
+  
+  
+> @router.get("/articles/{article_id}", response_model=ArticleResponse)
+> async def get_article(article_id: int, db: Session = Depends(get_db)):
+>     """Get specific knowledge base article"""
+!     try:
+!         article = db.query(KnowledgeBaseArticle).filter(
+!             KnowledgeBaseArticle.id == article_id,
+!             KnowledgeBaseArticle.is_published
+!         ).first()
+          
+!         if not article:
+!             raise HTTPException(
+!                 status_code=status.HTTP_404_NOT_FOUND,
+!                 detail="Article not found"
+!             )
+          
+          # Increment view count
+!         article.view_count = (article.view_count or 0) + 1
+!         db.commit()
+          
+!         return article
+  
+!     except HTTPException:
+!         raise
+!     except Exception as e:
+!         logger.error(f"Error getting article {article_id}: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail="Failed to get article"
+!         )
+  
+  
+> @router.put("/articles/{article_id}", response_model=ArticleResponse)
+> async def update_article(
+>     article_id: int,
+>     request: ArticleUpdateRequest,
+>     current_user: User = Depends(require_admin),
+>     db: Session = Depends(get_db)
+> ):
+>     """Update knowledge base article (Admin only)"""
+!     try:
+!         article = db.query(KnowledgeBaseArticle).filter(
+!             KnowledgeBaseArticle.id == article_id
+!         ).first()
+          
+!         if not article:
+!             raise HTTPException(
+!                 status_code=status.HTTP_404_NOT_FOUND,
+!                 detail="Article not found"
+!             )
+  
+          # Update fields if provided
+!         if request.title is not None:
+!             article.title = request.title
+!         if request.content is not None:
+!             article.content = request.content
+!         if request.category_id is not None:
+              # Verify category exists
+!             category = db.query(KnowledgeBaseCategory).filter(
+!                 KnowledgeBaseCategory.id == request.category_id
+!             ).first()
+!             if not category:
+!                 raise HTTPException(
+!                     status_code=status.HTTP_400_BAD_REQUEST,
+!                     detail="Invalid category ID"
+!                 )
+!             article.category_id = request.category_id
+!         if request.tags is not None:
+!             article.tags = request.tags
+!         if request.is_published is not None:
+!             article.is_published = request.is_published
+  
+!         article.updated_by = current_user.id
+!         article.updated_at = datetime.utcnow()
+  
+!         db.commit()
+!         db.refresh(article)
+  
+!         return article
+  
+!     except HTTPException:
+!         raise
+!     except Exception as e:
+!         logger.error(f"Failed to update article {article_id}: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail=f"Failed to update article: {str(e)}",
+!         )
+  
+  
+> @router.delete("/articles/{article_id}")
+> async def delete_article(
+>     article_id: str,
+>     current_user: User = Depends(get_current_user),
+>     db: Session = Depends(get_db_session),
+> ):
+>     """
+>     Delete a knowledge base article (admin only).
+>     """
+!     if current_user.role not in ["admin"]:
+!         raise HTTPException(
+!             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+!         )
+  
+!     try:
+!         success = kb_service.delete_article(article_id)
+!         if not success:
+!             raise HTTPException(
+!                 status_code=status.HTTP_404_NOT_FOUND,
+!                 detail=f"Article {article_id} not found",
+!             )
+  
+!         logger.info(f"Article deleted: {article_id} by {current_user.id}")
+  
+!         return {
+!             "success": True,
+!             "message": f"Article {article_id} deleted successfully",
+!         }
+  
+!     except HTTPException:
+!         raise
+!     except Exception as e:
+!         logger.error(f"Error deleting article {article_id}: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail="Failed to delete article"
+!         )
+  
+  
+  # FAQ Endpoints
+> @router.get("/faq", response_model=List[FAQResponse])
+> async def get_faqs(
+>     category_id: Optional[int] = Query(None),
+>     limit: int = Query(50, le=100),
+>     offset: int = Query(0, ge=0),
+>     db: Session = Depends(get_db)
+> ):
+>     """Get published FAQ entries"""
+!     try:
+!         query = db.query(FAQ).filter(FAQ.is_published)
+          
+!         if category_id:
+!             query = query.filter(FAQ.category_id == category_id)
+          
+!         faqs = query.order_by(FAQ.sort_order, FAQ.created_at).offset(offset).limit(limit).all()
+!         return faqs
+  
+!     except Exception as e:
+!         logger.error(f"Error getting FAQs: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail="Failed to get FAQs"
+!         )
+  
+  
+> @router.get("/faq/{faq_id}", response_model=FAQResponse)
+> async def get_faq(faq_id: int, db: Session = Depends(get_db)):
+>     """Get specific FAQ entry"""
+!     try:
+!         faq = db.query(FAQ).filter(
+!             FAQ.id == faq_id,
+!             FAQ.is_published
+!         ).first()
+          
+!         if not faq:
+!             raise HTTPException(
+!                 status_code=status.HTTP_404_NOT_FOUND,
+!                 detail="FAQ not found"
+!             )
+          
+          # Increment view count
+!         faq.view_count = (faq.view_count or 0) + 1
+!         db.commit()
+          
+!         return faq
+  
+!     except HTTPException:
+!         raise
+!     except Exception as e:
+!         logger.error(f"Error getting FAQ {faq_id}: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail="Failed to get FAQ"
+!         )
+  
+  
+> @router.post("/faq", response_model=FAQResponse)
+> async def create_faq(
+>     request: FAQCreateRequest,
+>     current_user: User = Depends(require_admin),
+>     db: Session = Depends(get_db)
+> ):
+>     """Create new FAQ entry (Admin only)"""
+!     try:
+          # Verify category exists
+!         category = db.query(KnowledgeBaseCategory).filter(
+!             KnowledgeBaseCategory.id == request.category_id
+!         ).first()
+!         if not category:
+!             raise HTTPException(
+!                 status_code=status.HTTP_400_BAD_REQUEST,
+!                 detail="Invalid category ID"
+!             )
+  
+!         faq = FAQ(
+!             question=request.question,
+!             answer=request.answer,
+!             category_id=request.category_id,
+!             author_id=current_user.id,
+!             is_published=request.is_published,
+!             view_count=0,
+!             sort_order=0,
+!             created_at=datetime.utcnow(),
+!             updated_at=datetime.utcnow()
+!         )
+  
+!         db.add(faq)
+!         db.commit()
+!         db.refresh(faq)
+  
+!         return faq
+  
+!     except HTTPException:
+!         raise
+!     except Exception as e:
+!         logger.error(f"Error creating FAQ: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail="Failed to create FAQ"
+!         )
+  
+  
+  # Categories Endpoints
+> @router.get("/categories", response_model=List[CategoryResponse])
+> async def get_categories(
+>     parent_id: Optional[int] = Query(None),
+>     db: Session = Depends(get_db)
+> ):
+>     """Get knowledge base categories"""
+!     try:
+!         query = db.query(KnowledgeBaseCategory).filter(
+!             KnowledgeBaseCategory.is_active,
+!             KnowledgeBaseCategory.is_public
+!         )
+          
+!         if parent_id is not None:
+!             query = query.filter(KnowledgeBaseCategory.parent_id == parent_id)
+          
+!         categories = query.order_by(KnowledgeBaseCategory.sort_order, KnowledgeBaseCategory.name).all()
+!         return categories
+  
+!     except Exception as e:
+!         logger.error(f"Error getting categories: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail="Failed to get categories"
+!         )
+  
+  
+  # Search endpoint
+> @router.get("/search")
+> async def search_knowledge_base(
+>     q: str = Query(..., min_length=1, max_length=200),
+>     type: str = Query("all", regex="^(all|articles|faq)$"),
+>     limit: int = Query(20, le=50),
+>     db: Session = Depends(get_db)
+> ):
+>     """Search knowledge base articles and FAQs"""
+!     try:
+!         results = {"articles": [], "faqs": []}
+  
+!         if type in ["all", "articles"]:
+!             articles = db.query(KnowledgeBaseArticle).filter(
+!                 KnowledgeBaseArticle.is_published,
+!                 KnowledgeBaseArticle.title.ilike(f"%{q}%") |
+!                 KnowledgeBaseArticle.content.ilike(f"%{q}%")
+!             ).limit(limit).all()
+              
+!             results["articles"] = [ArticleResponse.model_validate(article) for article in articles]
+  
+!         if type in ["all", "faq"]:
+!             faqs = db.query(FAQ).filter(
+!                 FAQ.is_published,
+!                 FAQ.question.ilike(f"%{q}%") |
+!                 FAQ.answer.ilike(f"%{q}%")
+!             ).limit(limit).all()
+              
+!             results["faqs"] = [FAQResponse.model_validate(faq) for faq in faqs]
+  
+!         return results
+  
+!     except Exception as e:
+!         logger.error(f"Error searching knowledge base: {str(e)}")
+!         raise HTTPException(
+!             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+!             detail="Failed to search knowledge base"
+!         )

@@ -1,0 +1,36 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <circle cx="60" cy="60" r="50" fill="url(#gradient)" stroke="url(#borderGradient)" stroke-width="2"/>
+  
+  <!-- Trading chart lines -->
+  <path d="M25 70 L35 60 L45 65 L55 45 L65 50 L75 35 L85 40 L95 25" 
+        stroke="white" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.9"/>
+  
+  <!-- AI/Neural network dots -->
+  <circle cx="30" cy="65" r="2" fill="white" opacity="0.8"/>
+  <circle cx="50" cy="55" r="2" fill="white" opacity="0.8"/>
+  <circle cx="70" cy="42" r="2" fill="white" opacity="0.8"/>
+  <circle cx="90" cy="30" r="2" fill="white" opacity="0.8"/>
+  
+  <!-- Connection lines between dots -->
+  <line x1="30" y1="65" x2="50" y2="55" stroke="white" stroke-width="1" opacity="0.4"/>
+  <line x1="50" y1="55" x2="70" y2="42" stroke="white" stroke-width="1" opacity="0.4"/>
+  <line x1="70" y1="42" x2="90" y2="30" stroke="white" stroke-width="1" opacity="0.4"/>
+  
+  <!-- Central AI node -->
+  <circle cx="60" cy="60" r="8" fill="white" opacity="0.9"/>
+  <circle cx="60" cy="60" r="4" fill="url(#gradient)"/>
+  
+  <!-- Definitions -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c6a0f6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8aadf4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7dc4e4;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="borderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#b7bdf8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c6a0f6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>

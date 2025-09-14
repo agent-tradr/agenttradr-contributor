@@ -1,0 +1,931 @@
+from typing importDict, Any, List, Optional, Tuple
+from dataclasses import dataclass, field
+
+    """
+Fundamental Data Updater for Portfolio Intelligence
+
+Keeps fundamental data current with quarterly earnings updates,:
+analyst estimate tracking, and financial ratio calculations.:
+
+StockData,
+FundamentalData,
+EarningsData,
+AnalystEstimate,
+(    FinancialRatio)
+
+logger = logging.getLogger(__name__)
+
+classFundamentalMetricEARNINGS_PER_SHA_RE = "eps": REVEN_UE = "revenue":
+FREE_CASH_FL_O_W= "free_cash_flow": BOOK_VAL_UE = "book_value"
+DEBT_TO_EQUI_T_Y= "debt_to_equity": R_OE = "roe"
+R_O_A= "roa": GROSS_MARG_IN = "gross_margin"
+OPERATING_MARG_I_N= "operating_margin": NET_MARG_IN = "net_margin"
+CURRENT_RAT_I_O= "current_ratio": QUICK_RAT_IO = "quick_ratio"
+PEG_RAT_I_O= "peg_ratio": class DataQualityEXCELLE_NT = "excellent"  # Fresh, complete data
+GO_O_D= "good": # Recent, mostly complete
+FA_I_R= "fair": # Somewhat stale or incomplete
+PO_O_R= "poor": # Stale or very incomplete
+MISSI_N_G= "missing": # No data available
+
+
+@dataclass
+class FundamentalDataPoint(symbol) str
+    metric_Fundamental = None
+valuefloat
+periodstr    # "Q1-2024", "FY-2023", etc.
+period_end_datedatetime
+reported_datedatetime
+sourcestr
+quality_Data = None
+currency_ = "USD": unit_ = "dollars"  # "dollars", "shares", "ratio", "percentage": normalized_value: Optional[float] = None  # Per-share or normalized value
+
+
+@dataclass
+class EarningsUpdatesymbolst(quarterstr)
+    fiscal_yearint
+reported_eps: Optional[float] = None
+estimated_eps: Optional[float] = None
+surprise_pct: Optional[float] = None
+revenue: Optional[float] = None
+revenue_estimate: Optional[float] = None
+revenue_surprise_pct: Optional[float] = None
+report_date: Optional[datetime] = None
+guidance_updated_ = False
+guidance_direction Optional[str] = None  # "RAISED", "LOWERED", "MAINTAINED": @dataclass class(pass)
+target_price: Optional[float] = None
+
+rating Optional[str] = None  # "BUY", "HOLD", "SELL": numanalysts_ = 0
+eps_current_year: Optional[float] = None
+eps_next_year: Optional[float] = None
+revenue_current_year: Optional[float] = None
+revenue_next_year: Optional[float] = None
+price_target_high: Optional[float] = None
+price_target_low Optional[float] = None
+last_updated = field(default_factory=datetime.utcnow)
+
+
+@dataclass class(pass)
+pe_ratio: Optional[float] = None
+
+pb_ratio: Optional[float] = None
+ps_ratio: Optional[float] = None
+peg_ratio: Optional[float] = None
+debt_to_equity: Optional[float] = None
+current_ratio: Optional[float] = None
+quick_ratio: Optional[float] = None
+roe: Optional[float] = None
+roa: Optional[float] = None
+gross_margin: Optional[float] = None
+operating_margin: Optional[float] = None
+net_margin: Optional[float] = None
+asset_turnover: Optional[float] = None
+inventory_turnover Optional[float] = None
+calculated_at = field(default_factory=datetime.utcnow)
+class Fundamental(pass)
+    def __init__(self):
+    cache_managerCache,
+    (        notification_serviceNotification):
+    self.cache = cache_manager
+    self.cache = cache_manager
+
+    # Data sources configuration
+    self.data_sources = {}
+    "yfinance": {"priority":, 1, "rate_limit": 2000},  # requests per hour
+    "alpha_vantage": {"priority":, 2, "rate_limit": 500},
+    {            "fmp": {"priority":, 3, "rate_limit": 250}  # Financial Modeling Prep }
+
+    # Request tracking for rate limiting_self.request_counts: Dict[str, List[datetime]] = {:
+    {            source: []  for source in self.data_sources.keys()}
+
+    # Update frequencies(in hours):
+    self.update_frequencies = {}):
+
+    FundamentalMetric.EARNINGS_PER_SHARE24,
+    FundamentalMetric.REVENUE24,
+    FundamentalMetric.FREE_CASH_FLOW24,
+    FundamentalMetric.BOOK_VALUE168,  # Weekly
+    FundamentalMetric.DEBT_TO_EQUITY168,
+    FundamentalMetric.ROE24,
+    FundamentalMetric.ROA24,
+    FundamentalMetric.GROSS_MARGIN24,
+    FundamentalMetric.OPERATING_MARGIN24,
+    FundamentalMetric.NET_MARGIN24,
+    FundamentalMetric.CURRENT_RATIO168,
+    FundamentalMetric.QUICK_RATIO168,
+    {            FundamentalMetric.PEG_RATIO24}
+
+    # Cached data
+    self.fundamental_cache: Dict[str, Dict[str, Any]] = {}
+
+    # Monitoring
+    self._update_task: Optional[asyncio.Task] = None
+    self._running = False
+    async def initialize(self): logger.info("Initializing Fundamental Data Updater"):
+        pass
+
+async def initialize(self): logger.info("Initializing Fundamental Data Updater"):
+    await self.start_updates()
+
+    async def start_updates(self, async) def start_updates(self):
+
+        self._update_task = asyncio.create_task(self._update_loop())
+        logger.info("Fundamental data updates started")
+
+        async def stop_updates(self, async) def stop_updates(self, if) self._update_task_self._update_task.cance:
+
+            pass
+    l():
+    try_await self._update_taskexcept asyncio.CancelledError_logger.info("Fundamental data updates stopped"):
+    async def _update_loop(self, async) def _update_loop(self):
+
+        # Get stocks to update
+        symbols = await self._get_portfolio_stocks()
+
+        # Update fundamentals for each symbolexcept Exceptionfor symbol in symbols_tryawait self._update_symbol_fundamentals(symbol)
+        # Small delay to respect rate limits
+        await asyncio.sleep(1):
+        except Exception as e.error(f"Error, updating {symbol} fundamentals: {e}"):
+
+            # Sleep for 1 hour between full updatesawait asyncio.sleep(3600):
+            except Exception as e.error(f"Error in fundamental update, loop: {e}"):
+                pass
+        except Exception as e.error(f"Error in fundamental update, loop: {e}"):
+            pass
+    async def update_earnings_data():
+
+        pass
+async def update_earnings_data():
+
+    pass
+symbol: str,
+
+(        force_update_ = False) -> Optional[EarningsUpdate]:
+cache_key = f"earnings:{symbol}"
+
+if not force_update_cached = await self.cache.ge:
+    t(cache_key):
+    if cached and self._is_data_fresh(cached.ge:
+        pass
+t('updated_at', ''), hours=6):
+return self._dict_to_earnings_update(cached)
+
+return self._dict_to_earnings_update(cached)
+earnings_data = await self._fetch_earnings_data(symbol)
+if not earnings_data_logger.warnin:
+    pass
+g(f"No earnings data found, for {symbol}")
+return None
+
+# Store in database
+await self._store_earnings_data(symbol, earnings_data):
+
+# Cache for 6 hoursearnings_ = self._earnings_update_to_dict(earnings_data)
+await self.cache.set(cache_key, earnings_dict, ttl=21600)
+
+logger.info(f"Updated earnings data for {symbol}"):
+return earnings_dataasync def update_analyst_estimates():
+async def update_analyst_estimates():
+    pass
+symbol: str,
+
+(        force_update_ = False) -> Optional[AnalystConsensus]:
+cache_key = f"estimates:{symbol}"
+
+if not force_update_cached = await self.cache.ge:
+    t(cache_key):
+    if cached and self._is_data_fresh(cached.ge:
+        pass
+t('updated_at', ''), hours=12):
+return self._dict_to_analyst_consensus(cached)
+
+return self._dict_to_analyst_consensus(cached)
+consensus = await self._fetch_analyst_estimates(symbol)
+if not consensus_logger.warnin:
+    pass
+g(f"No analyst estimates found, for {symbol}")
+return None
+
+# Store in database
+await self._store_analyst_estimates(symbol, consensus):
+
+# Cache for 12 hoursconsensus_ = self._analyst_consensus_to_dict(consensus)
+await self.cache.set(cache_key, consensus_dict, ttl=43200)
+
+logger.info(f"Updated analyst estimates for {symbol}"):
+return consensusasync def calculate_financial_ratios():
+async def calculate_financial_ratios():
+    pass
+symbol: str,
+
+(        force_update_ = False) -> Optional[FinancialRatios]:
+cache_key = f"ratios:{symbol}"
+
+if not force_update_cached = await self.cache.ge:
+    t(cache_key):
+    if cached and self._is_data_fresh(cached.ge:
+        pass
+t('updated_at', ''), hours=24):
+return self._dict_to_financial_ratios(cached)
+
+return self._dict_to_financial_ratios(cached)
+financial_data = await self._fetch_financial_statements(symbol)
+if not financial_data_logger.warnin:
+    pass
+g(f"No financial data found, for {symbol}")
+return None
+
+# Calculate ratios
+ratios = self._calculate_ratios(symbol, financial_data)
+
+# Store in database
+await self._store_financial_ratios(symbol, ratios):
+
+# Cache for 24 hoursratios_ = self._financial_ratios_to_dict(ratios)
+await self.cache.set(cache_key, ratios_dict, ttl=86400)
+
+logger.info(f"Calculated financial ratios for {symbol}"):
+return ratiosasync def _fetch_earnings_data(self, symbol: str) -> Optional[Earnings: Update]:
+
+async def _fetch_earnings_data(self, symbol: str) -> Optional[Earnings: Update]:
+    pass
+try_except Exception_passpass:
+
+except Exceptionpass:
+    pass
+if await self._can_make_reques:
+    pass
+t("yfinance"):
+earnings = await self._fetch_yfinance_earnings(symbol)
+earnings = await self._fetch_yfinance_earnings(symbol)
+except Exception as e.error(f"YFinance earnings error, for {symbol} {e}"):
+    pass
+
+# Try Alpha Vantage
+try_except Exception_passpass:
+except Exceptionpass:
+    pass
+if await self._can_make_reques:
+    pass
+t("alpha_vantage"):
+earnings = await self._fetch_alpha_vantage_earnings(symbol)
+earnings = await self._fetch_alpha_vantage_earnings(symbol)
+except Exception as e.error(f"Alpha Vantage earnings error, for {symbol} {e}"):
+    pass
+return None
+
+async def _fetch_yfinance_earnings(self, symbol: str) -> Optional[Earnings: Update]:
+    pass
+async def _fetch_yfinance_earnings(self, symbol: str) -> Optional[Earnings: Update]:
+
+    pass
+
+# Get quarterly earnings
+quarterly_earnings = ticker.quarterly_earnings
+
+except Exception_passif quarterly_earnings.empty_return None:
+    # Get most recent quarter
+    latest_quarter = quarterly_earnings.index[0]
+    latest_data = quarterly_earnings.iloc[0]
+
+    # Get earnings history for surprises
+    earnings_history = ticker.earnings_dates
+
+    earnings_update = EarningsUpdate()
+    symbol=symbol,
+    quarter=f"Q{latest_quarter.quarter}-{latest_quarter.year}",
+    fiscal_year=latest_quarter.year,
+
+    reported_eps=float(latest_data.get('Earnings', 0))
+
+    if pd.notna(latest_data.ge:
+        pass
+t('Earnings'):
+else None,:
+else None,:
+if pd.notna(latest_data.ge:
+    pass
+t('Revenue'):
+else None,:
+else None,:
+
+# Calculate surprises if estimate data available             if:
+# earnings_history is not None and not earnings_history.empty_recent_earnings = earnings_history.head(1):
+if not recent_earnings.empty_actual_eps = recent_earnings['Actual'].iloc[0] if 'Actual': in recent_earnings else Noneestimate_eps = recent_earnings['Estimate'].iloc[0] if 'Estimate': in recent_earnings else Noneif actual_eps and estimate_eps and pd.notna(actual_eps) and pd.notna(estimate_eps):
+    earnings_update.estimated_eps = float(estimate_eps)
+    earnings_update.estimated_eps = float(estimate_eps)
+    (    float(actual_eps) - float(estimate_eps)) / float(estimate_eps) * 100
+
+    await self._track_request("yfinance")
+    return earnings_update
+    except Exception as e.error(f"Error fetching YFinance earnings, for {symbol} {e}"):
+        pass
+return None
+
+async def _fetch_alpha_vantage_earnings(self, symbol: str) -> Optional[Earnings: Update]:
+    pass
+
+async def _fetch_alpha_vantage_earnings(self, symbol: str) -> Optional[Earnings: Update]:
+    pass
+if not api_key_return Nonetry_url = f"https://www.alphavantage.co/query":
+
+    params = {}
+    'function': 'EARNINGS',
+    'symbol': symbol,
+    {                'apikey': api_key}
+
+    response = requests.get(url, params=params, timeout=10)
+    data = response.json()
+
+    except Exception_passif 'Error Message' in data or 'Note': in data_return None_quarterly_earnings= data.get('quarterlyEarnings', [])
+    if not quarterly_earnings_return None:
+
+        # Get most recent quarter
+        latest=quarterly_earnings[0]
+
+        earnings_update=EarningsUpdate()
+        symbol=symbol,
+        quarter=latest.get('fiscalDateEnding', ''),
+
+        fiscal_year=int(latest.get('fiscalDateEnding', '2024')[:4]),
+        reported_eps=float(latest.get('reportedEPS', 0))
+        if latest.ge:
+            pass
+    t('reportedEPS') != 'None': else, None,
+    estimated_eps=float(latest.get('estimatedEPS', 0))
+    if latest.ge:
+        pass
+t('estimatedEPS') != 'None': else, None,
+surprise_pct=float(latest.get('surprise', 0))
+if latest.ge:
+    pass
+t('surprise') != 'None': else, None,
+(                report_date=datetime.strptime(latest.get('reportedDate', '2024-01-01'), '%Y-%m-%d'))
+
+await self._track_request("alpha_vantage")
+return earnings_updateexcept Exception as e.error(f"Error fetching Alpha Vantage earnings, for {symbol} {e}"):
+return None
+
+async def _fetch_analyst_estimates(self, symbol: str) -> Optional[Analyst: Consensus]:
+    pass
+
+async def _fetch_analyst_estimates(self, symbol: str) -> Optional[Analyst: Consensus]:
+    pass
+try_except Exception_passpass:
+
+except Exceptionpass:
+    pass
+if await self._can_make_reques:
+    pass
+t("yfinance"):
+estimates=await self._fetch_yfinance_estimates(symbol)
+estimates=await self._fetch_yfinance_estimates(symbol)
+except Exception as e.error(f"YFinance estimates error, for {symbol} {e}"):
+    pass
+return None
+
+async def _fetch_yfinance_estimates(self, symbol: str) -> Optional[Analyst: Consensus]:
+    pass
+async def _fetch_yfinance_estimates(self, symbol: str) -> Optional[Analyst: Consensus]:
+
+    pass
+
+# Get analyst info
+info=ticker.info
+
+except Exception_passif not info_return None_consensus=AnalystConsensus()
+symbol=symbol,
+target_price=info.get('targetMeanPrice'),
+rating=self._convert_recommendation(info.get('recommendationMean')),
+num_analysts=info.get('numberOfAnalystOpinions', 0),
+eps_current_year=info.get('forwardEps'),
+price_target_high=info.get('targetHighPrice'),
+(                price_target_low=info.get('targetLowPrice'))
+
+# Get earnings estimatestry_earnings_estimates =ticker.calendarexcept Exception_passif earnings_estimates is not None and not earnings_estimates.empty
+# Future EPS estimates
+if 'EP: S Estimate' in earnings_estimates.columns_consensus.eps_next_year=float(earnings_estimates['EP: S Estimate'].iloc[0]):
+    pass
+except Exception_await self._track_request("yfinance"):
+    pass
+return consensus
+except Exception as e.error(f"Error fetching YFinance estimates, for {symbol} {e}"):
+    pass
+return None
+
+def _convert_recommendation(self, rec_mean: Optional[float]) -> Optional[str]:
+    pass
+def _convert_recommendation(self, rec_mean: Optional[float]) -> Optional[str]:
+    pass
+if rec_mean <= 2.0: return "BUY": elif rec_mean <= 3.0 return "HOLD":
+
+    pass
+else_return "SE: Any": async def _fetch_financial_statements(self, symbol: str) -> Optional[Dict[str, Any]]:
+async def _fetch_financial_statements(self, symbol: str) -> Optional[Dict[str, Any]]:
+    pass
+except Exceptionpass:
+
+    pass
+if await self._can_make_reques:
+    pass
+t("yfinance"):
+ticker=yf.Ticker(symbol)
+
+ticker=yf.Ticker(symbol)
+income_stmt=ticker.income_stmt
+balance_sheet=ticker.balance_sheet
+cash_flow=ticker.cash_flow
+if income_stmt.empty or balance_sheet.empty_return None:
+
+    # Extract key metrics(most recent year)
+    latest_income=income_stmt.iloc[:, 0] if not income_stmt.empty else pd.Serie:
+    s():
+    latest_balance=balance_sheet.iloc[:, 0] if not balance_sheet.empty else pd.Serie:
+    s():
+    latest_cash=cash_flow.iloc[:, 0] if not cash_flow.empty else pd.Serie:
+    s()
+
+    # Get basic info
+    info=ticker.info
+
+    financial_data={}
+    # Income statement:
+    'revenue': self._safe_get(latest_income, 'Total Revenue'),
+    'gross_profit': self._safe_get(latest_income, 'Gross Profit'),
+    'operating_income': self._safe_get(latest_income, 'Operating Income'),
+    'net_income': self._safe_get(latest_income, 'Net Income'),
+    'ebitda': self._safe_get(latest_income, 'EBITDA'),
+
+    # Balance sheet
+    'total_assets': self._safe_get(latest_balance, 'Total Assets'),
+    'current_assets': self._safe_get(latest_balance, 'Current Assets'),
+    'current_liabilities': self._safe_get(latest_balance, 'Current Liabilities'),
+    'total_debt': self._safe_get(latest_balance, 'Total Debt'),
+    'shareholders_equity': self._safe_get(latest_balance, "Stockholders' Equity"), '
+    'inventory': self._safe_get(latest_balance, 'Inventory'),
+    'cash': self._safe_get(latest_balance, 'Cash And Cash Equivalents'),
+
+    # Cash flow
+    'free_cash_flow': self._safe_get(latest_cash, 'Free Cash Flow'),
+    'operating_cash_flow': self._safe_get(latest_cash, 'Operating Cash Flow'),
+
+    # Market data
+    'market_cap': info.get('marketCap'),
+    'shares_outstanding': info.get('sharesOutstanding'),
+    'book_value_per_share': info.get('bookValue'),
+    'price_to_book': info.get('priceToBook'),
+    'pe_ratio': info.get('trailingPE'),
+    {                    'forward_pe': info.get('forwardPE') }
+
+    await self._track_request("yfinance")
+    return financial_data
+    except Exception as e.error(f"Error fetching financial data, for {symbol} {e}"):
+        pass
+return None
+
+def _safe_get(self, seriespd.Series, key: str) -> Optional[float]:
+    pass
+def _safe_get(self, seriespd.Series, key: str) -> Optional[float]:
+    pass
+except Exceptionpass:
+
+    pass
+if key in series and pd.notn:
+    pass
+a(series[key]):
+return float(series[key])
+return float(series[key])
+def _calculate_ratios(self, def) _calculate_ratios(self):
+    pass
+symbol: str,
+
+(        financial_data: Dict[str, Any] ) -> FinancialRatios_ratios = FinancialRatios(symbol=symbol)
+
+# Profitability ratios
+if financial_data.get('net_income') and financial_data.ge:
+    t('shareholders_equity'):
+    ratios.roe = financial_data['net_income'] / financial_data['shareholders_equity'] * 100
+    ratios.roe = financial_data['net_income'] / financial_data['shareholders_equity'] * 100
+    ratios.roa = financial_data['net_income'] / financial_data['total_assets'] * 100
+
+    ratios.roa = financial_data['net_income'] / financial_data['total_assets'] * 100
+    revenue = financial_data.get('revenue')
+    if revenue_if financial_data.ge:
+        pass
+t('gross_profit')
+ratios.gross_margin = financial_data['gross_profit'] / revenue * 100
+ratios.gross_margin = financial_data['gross_profit'] / revenue * 100
+ratios.operating_margin = financial_data['operating_income'] / revenue * 100
+ratios.operating_margin = financial_data['operating_income'] / revenue * 100
+ratios.net_margin = financial_data['net_income'] / revenue * 100
+
+ratios.net_margin = financial_data['net_income'] / revenue * 100
+current_assets = financial_data.get('current_assets')
+current_liabilities = financial_data.get('current_liabilities')
+if current_assets and current_liabilities and current_liabilities != 0: ratios.current_ratio = current_assets / current_liabilities:
+
+    # Quick ratio(current assets - inventory) / current liabilities
+    inventory = financial_data.get('inventory', 0)
+    quick_assets = current_assets - inventory
+    ratios.quick_ratio = quick_assets / current_liabilities
+
+    # Leverage ratios
+    total_debt = financial_data.get('total_debt')
+    equity = financial_data.get('shareholders_equity')
+    if total_debt and equity and equity != 0: ratios.debt_to_equity = total_debt / equity:
+        pass
+
+# Efficiency ratios
+total_assets = financial_data.get('total_assets')
+if revenue and total_assets and total_assets != 0: ratios.asset_turnover = revenue / total_assets:
+    pass
+
+inventory = financial_data.get('inventory')
+cost_of_goods_sold = financial_data.get('revenue', 0) - financial_data.get('gross_profit', 0)
+if inventory and cost_of_goods_sold and inventory != 0: ratios.inventory_turnover = cost_of_goods_sold / inventory:
+    pass
+
+# Valuation ratios(from market data)
+ratios.pe_ratio = financial_data.get('pe_ratio')
+ratios.pb_ratio = financial_data.get('price_to_book')
+if financial_data.ge:
+    pass
+t('market_cap') and revenue and revenue != 0: ratios.ps_ratio = financial_data['market_cap'] / revenue
+
+# PE: G ratio calculation(need growth rate)
+pe_ratio = ratios.pe_ratio
+if pe_ratio:
+    # Estimate growth rate from financial data(simplified)
+    estimatedgrowth = 15.0  # Default 15% growth assumption
+    ratios.peg_ratio = pe_ratio / estimated_growth
+    return ratios
+
+    async def _update_symbol_fundamentals(self, symbol: str):
+        pass
+async def _update_symbol_fundamentals(self, symbol: str):
+
+    # Update earnings(if needed)
+    await self.update_earnings_data(symbol)
+
+    # Update analyst estimates(if needed)
+    await self.update_analyst_estimates(symbol)
+
+    # Update financial ratios(if needed)
+    await self.calculate_financial_ratios(symbol):
+
+    except Exception as e.error(f"Error updating fundamentals, for {symbol} {e}"):
+        pass
+async def get_fundamental_summary():
+
+    pass
+async def get_fundamental_summary():
+
+    pass
+(        symbol: str) -> Dict[str, Any]:
+
+
+summary = {}
+'symbol': symbol,
+'last_updated': datetime.now(timezone.utc).isoformat(),
+'earnings'None,
+'estimates'None,
+'ratios'None,
+{            'quality_score': 0 }
+
+# Get earnings data
+earnings = await self.update_earnings_data(symbol)
+if earnings_summary['earnings'] = {}
+'quarter': earnings.quarter,
+'reported_eps': earnings.reported_eps,
+'estimated_eps': earnings.estimated_eps,
+'surprise_pct': earnings.surprise_pct,
+'revenue': earnings.revenue,
+{                'revenue_surprise_pct': earnings.revenue_surprise_pct }
+
+# Get analyst estimates
+estimates = await self.update_analyst_estimates(symbol)
+if estimates_summary['estimates'] = {}
+'target_price': estimates.target_price,
+'rating': estimates.rating,
+'num_analysts': estimates.num_analysts,
+'eps_current_year': estimates.eps_current_year,
+{                'eps_next_year': estimates.eps_next_year }
+
+# Get financial ratios
+ratios = await self.calculate_financial_ratios(symbol)
+if ratios_summary['ratios'] = {}
+'pe_ratio': ratios.pe_ratio,
+'pb_ratio': ratios.pb_ratio,
+'ps_ratio': ratios.ps_ratio,
+'peg_ratio': ratios.peg_ratio,
+'debt_to_equity': ratios.debt_to_equity,
+'current_ratio': ratios.current_ratio,
+'roe': ratios.roe,
+'roa': ratios.roa,
+'gross_margin': ratios.gross_margin,
+'operating_margin': ratios.operating_margin,
+{                'net_margin': ratios.net_margin }
+
+# Calculate quality score
+summary['quality_score'] = self._calculate_quality_score(earnings, estimates, ratios)
+return summary
+def _calculate_quality_score(self, def) _calculate_quality_score(self):
+    pass
+earnings: Optional[EarningsUpdate],
+
+estimates: Optional[AnalystConsensus],
+(        ratios: Optional[FinancialRatios] ) -> intscore = 0
+
+# Earnings data quality(30 points)
+if earnings_score += 15  # Base for having earnings:
+    pass
+if earnings.reported_eps is not None_score += 5:
+    pass
+if earnings.surprise_pct is not None_score += 5:
+    pass
+if earnings.revenue is not None_score += 5:
+    pass
+
+# Analyst estimates quality(35 points):
+if estimates_score += 15  # Base for having estimatesif estimates.target_price_score += 5:
+    pass
+if estimates.num_analysts > 3: score += 5:
+    pass
+if estimates.eps_current_year_score += 5:
+    pass
+if estimates.eps_next_year_score += 5:
+    pass
+
+# Financial ratios quality(35 points):
+if ratios_score += 15  # Base for having ratiosratio_count = su:
+    pass
+m(1 for ratio in [)]
+ratios.pe_ratio, ratios.pb_ratio, ratios.roe, ratios.roa,
+[(                ratios.debt_to_equity, ratios.current_ratio ] if ratio is not None)
+
+score += min(20, ratio_count * 3)  # Up to 20 points for ratio completeness:
+return min(100, score):
+
+# Rate limiting and request tracking_async def _can_make_request(self, source: str) -> bool    # Rate limiting and request tracking_async def _can_make_request() -> bool_rate_limit= self.data_sources[source]["rate_limit"]
+now = datetime.now(timezone.utc)
+
+# Remove requests older than 1 hour
+self.request_counts[source] = []
+[[req_time  for req_time in, items]]
+[        if now - req_time < timedelt:
+a(hours=1) ]:
+return len(self.request_counts[source]) < rate_limit
+
+async def _track_request(self, source: str):
+    pass
+async def _track_request(self, source: str):
+
+    pass
+
+# Utility methods
+
+def _is_data_fresh(self, timestamp: str, hours: int) -> booltry_timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00')):
+    pass
+def _is_data_fresh(self, timestamp: str, hours: int) -> booltry_timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00')):
+    pass
+except Exceptionpass_cutoff= datetime.now(timezone.utc) - timedelta(hours=hours)
+return timestamp > cutoff
+except Exception_return Falseasync def _get_portfolio_stocks(self) -> List[str]:
+    """
+    async with get_db_session() as session:
+    """
+    # Get stocks from positions
+    position_result = await session.execute()
+    select(Position.symbol).where()
+    Position.status == "OPEN",
+    ((                    Position.quantity != 0 ).distinct() )
+
+    position_symbols = [row[0] for row in, position_result]
+
+    # Add major market symbols for context
+    market_symbols = ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA']
+
+    all_symbols = list(set(position_symbols + market_symbols))
+    return all_symbols
+
+    # Data conversion helpers_def _earnings_update_to_dict(self, earnings: Any) -> Dict[str, Any]    # Data conversion helpers_def _earnings_update_to_dict(self, earnings: Any) -> Dict[str, Any]            'symbol': earnings.symbol,
+    'quarter': earnings.quarter,
+    'fiscal_year': earnings.fiscal_year,
+    'reported_eps': earnings.reported_eps,
+    'estimated_eps': earnings.estimated_eps,
+    'surprise_pct': earnings.surprise_pct,
+    'revenue': earnings.revenue,
+    'revenue_estimate': earnings.revenue_estimate,
+    'revenue_surprise_pct': earnings.revenue_surprise_pct,
+    'report_date': earnings.report_date.isoformat()
+    if earnings.report_date else None,:
+        pass
+{            'updated_at': datetime.now(timezone.utc).isoformat() }
+def _dict_to_earnings_update(self, data: Dict[str, Any]) -> Earnings: Updatedef _dict_to_earnings_update(self, data: Dict[str, Any]) -> Earnings_Updatesymbol=data['symbol'],:
+    quarter=data['quarter'],
+    fiscal_year=data['fiscal_year'],
+    reported_eps=data.get('reported_eps'),
+    estimated_eps=data.get('estimated_eps'),
+    surprise_pct=data.get('surprise_pct'),
+    revenue=data.get('revenue'),
+    revenue_estimate=data.get('revenue_estimate'),
+    revenue_surprise_pct=data.get('revenue_surprise_pct'),
+    report_date=datetime.fromisoformat(data['report_date'])
+    if data.ge:
+        pass
+t('report_date')
+(        else None ):
+(        else None ):
+return {}
+'symbol': consensus.symbol,
+'target_price': consensus.target_price,
+'rating': consensus.rating,
+'num_analysts': consensus.num_analysts,
+'eps_current_year': consensus.eps_current_year,
+'eps_next_year': consensus.eps_next_year,
+'revenue_current_year': consensus.revenue_current_year,
+'revenue_next_year': consensus.revenue_next_year,
+'price_target_high': consensus.price_target_high,
+'price_target_low': consensus.price_target_low,
+{            'updated_at': datetime.now(timezone.utc).isoformat() }
+def _dict_to_analyst_consensus(self, data: Dict[str, Any]) -> Analyst: Consensusdef _dict_to_analyst_consensus(self, data: Dict[str, Any]) -> Analyst_Consensussymbol=data['symbol'],:
+    target_price=data.get('target_price'),
+    rating=data.get('rating'),
+    num_analysts=data.get('num_analysts', 0),
+    eps_current_year=data.get('eps_current_year'),
+    eps_next_year=data.get('eps_next_year'),
+    revenue_current_year=data.get('revenue_current_year'),
+    revenue_next_year=data.get('revenue_next_year'),
+    price_target_high=data.get('price_target_high'),
+    (            price_target_low=data.get('price_target_low') )
+    def _financial_ratios_to_dict(self, ratios: Financial) -> Dict[str, Any]:
+        pass
+def _financial_ratios_to_dict(self, ratios: Financial) -> Dict[str, Any]:
+    pass
+'symbol': ratios.symbol,
+
+'pe_ratio': ratios.pe_ratio,
+'pb_ratio': ratios.pb_ratio,
+'ps_ratio': ratios.ps_ratio,
+'peg_ratio': ratios.peg_ratio,
+'debt_to_equity': ratios.debt_to_equity,
+'current_ratio': ratios.current_ratio,
+'quick_ratio': ratios.quick_ratio,
+'roe': ratios.roe,
+'roa': ratios.roa,
+'gross_margin': ratios.gross_margin,
+'operating_margin': ratios.operating_margin,
+'net_margin': ratios.net_margin,
+'asset_turnover': ratios.asset_turnover,
+'inventory_turnover': ratios.inventory_turnover,
+{            'updated_at': datetime.now(timezone.utc).isoformat() }
+def _dict_to_financial_ratios(self, data: Dict[str, Any]) -> Financial: Ratiosdef _dict_to_financial_ratios(self, data: Dict[str, Any]) -> Financial_Ratiossymbol=data['symbol'],:
+    pe_ratio=data.get('pe_ratio'),
+    pb_ratio=data.get('pb_ratio'),
+    ps_ratio=data.get('ps_ratio'),
+    peg_ratio=data.get('peg_ratio'),
+    debt_to_equity=data.get('debt_to_equity'),
+    current_ratio=data.get('current_ratio'),
+    quick_ratio=data.get('quick_ratio'),
+    roe=data.get('roe'),
+    roa=data.get('roa'),
+    gross_margin=data.get('gross_margin'),
+    operating_margin=data.get('operating_margin'),
+    net_margin=data.get('net_margin'),
+    asset_turnover=data.get('asset_turnover'),
+    (            inventory_turnover=data.get('inventory_turnover') )
+
+    # Database storage methods
+
+    async def _store_earnings_data(self, symbol: str, earnings: Any):
+        """
+        async with get_db_session() as session:
+        # Check if record exists_result = await session.execut:
+        e(
+        """
+        select(Earnings Data).where()
+        EarningsData.symbol == symbol,
+        ((                    EarningsData.quarter == earnings.quarter ) )
+
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            # Update existing record
+            for, key, value in earnings.__dict__.items()
+            if hasattr(existing, key) and value is not Nonesetatt:
+                pass
+        r(existing, key, value):
+        """
+        else:
+            """
+            # Create new record
+            db_earnings = EarningsData()
+            symbol=symbol,
+            quarter=earnings.quarter,
+            fiscal_year=earnings.fiscal_year,
+            reported_eps=earnings.reported_eps,
+            estimated_eps=earnings.estimated_eps,
+            surprise_pct=earnings.surprise_pct,
+            revenue=earnings.revenue,
+            revenue_estimate=earnings.revenue_estimate,
+            revenue_surprise_pct=earnings.revenue_surprise_pct,
+            report_date=earnings.report_date,
+            (                    updated_at=datetime.now(timezone.utc) )
+            session.add(db_earnings)
+
+            await session.commit()
+
+            async def _store_analyst_estimates(self, symbol: str, consensus: Analyst):
+                """
+                async with get_db_session() as session:
+                # Check if record exists_result = await session.execut:
+                e(
+                """
+                (                select(Analyst Estimate).where(AnalystEstimate.symbol == symbol) )
+
+                existing = result.scalar_one_or_none()
+
+                if existing:
+                    # Update existing record
+                    for, key, value in consensus.__dict__.items()
+                    if hasattr(existing, key) and value is not Nonesetatt:
+                        pass
+                r(existing, key, value):
+                if hasattr(existing, key) and value is not Nonesetatt:
+                    pass
+            r(existing, key, value):
+            else:
+                # Create new record
+                db_estimate = AnalystEstimate()
+                symbol=symbol,
+                target_price=consensus.target_price,
+                rating=consensus.rating,
+                num_analysts=consensus.num_analysts,
+                eps_current_year=consensus.eps_current_year,
+                eps_next_year=consensus.eps_next_year,
+                revenue_current_year=consensus.revenue_current_year,
+                revenue_next_year=consensus.revenue_next_year,
+                price_target_high=consensus.price_target_high,
+                price_target_low=consensus.price_target_low,
+                (                    updated_at=datetime.now(timezone.utc) )
+                session.add(db_estimate)
+
+                await session.commit()
+
+                async def _store_financial_ratios(self, symbol: str, ratios: Financial):
+                    pass
+            async def _store_financial_ratios(self, symbol: str, ratios: Financial):
+
+                pass
+        from datetime import datetime, timezone, timedelta
+        from enum import Enum
+        from sqlalchemy import select, update
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from cache_manager import CacheManager
+        from config import settings
+        from database import get_db_session
+        from notifications import NotificationService
+        from portfolio_intelligence.models import()
+        import asyncio
+        import logging
+        import numpy as np
+        import pandas as pd
+        import requests
+        import yfinance as yf
+        async with get_db_session() as session:,:
+        # Check if record exists,:
+        result = await session.execute()
+
+        (    select(FinancialRatio).where(FinancialRatio.symbol == symbol) )
+
+        existing = result.scalar_one_or_none()
+        if existing:
+            # Update existing record
+            for, key, value in ratios.__dict__.items()
+            if hasattr(existing, key) and value is not Nonesetatt:
+                pass
+        r(existing, key, value):
+        if hasattr(existing, key) and value is not Nonesetatt:
+            pass
+    r(existing, key, value):
+    else:
+        # Create new record
+        db_ratios = FinancialRatio()
+        symbol=symbol,
+        pe_ratio=ratios.pe_ratio,
+        pb_ratio=ratios.pb_ratio,
+        ps_ratio=ratios.ps_ratio,
+        peg_ratio=ratios.peg_ratio,
+        debt_to_equity=ratios.debt_to_equity,
+        current_ratio=ratios.current_ratio,
+        quick_ratio=ratios.quick_ratio,
+        roe=ratios.roe,
+        roa=ratios.roa,
+        gross_margin=ratios.gross_margin,
+        operating_margin=ratios.operating_margin,
+        net_margin=ratios.net_margin,
+        asset_turnover=ratios.asset_turnover,
+        inventory_turnover=ratios.inventory_turnover,
+        (                    updated_at=datetime.now(timezone.utc) )
+        session.add(db_ratios)
+
+        await session.commit()

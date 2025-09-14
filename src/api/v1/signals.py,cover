@@ -1,0 +1,641 @@
+> import json
+> import uuid
+> from datetime import date, datetime, timezone
+> from decimal import Decimal
+> from typing import Optional, Dict, Any, List
+  
+> from fastapi import (
+>     APIRouter,
+>     Depends,
+>     HTTPException,
+>     Query,
+>     status,
+>     WebSocket,
+>     WebSocketDisconnect
+> )
+> from pydantic import BaseModel, Field, ConfigDict
+> from sqlalchemy import func
+> from sqlalchemy.orm import Session, joinedload
+  
+> from src.auth.dependencies import get_current_user
+> from src.auth.jwt_manager import JWTManager
+> from src.database.core import get_db_session
+> from src.database.models import (
+>     StrategySignal,
+>     UserSignalSettings,
+>     Strategy,
+>     StrategyProvider,
+>     StrategySubscription,
+>     StrategyPerformance,
+>     User
+> )
+  
+> """
+> Signal API endpoints.
+> """
+  
+  # Initialize router
+> router = APIRouter(prefix="/signals", tags=["Signals"])
+  
+  # Request/Response models
+> class SignalSubmission(BaseModel):
+>     """Signal submission request."""
+  
+>     strategy_id: str
+>     signal_type: str = Field(..., pattern="^(entry|exit|update|alert)$")
+>     action: str = Field(..., pattern="^(buy|sell|hold|close)$")
+>     symbol: str
+>     entry_price: Decimal
+>     stop_loss: Optional[Decimal] = None
+>     take_profit: Optional[Decimal] = None
+>     risk_percentage: Optional[Decimal] = Field(None, ge=0, le=100)
+>     notes: Optional[str] = None
+>     metadata: Optional[Dict[str, Any]] = None
+  
+>     model_config = ConfigDict(
+>         json_schema_extra={
+>             "example": {
+>                 "strategy_id": "123e4567-e89b-12d3-a456-426614174000",
+>                 "signal_type": "entry",
+>                 "action": "buy",
+>                 "symbol": "EUR/USD",
+>                 "entry_price": 1.0850,
+>                 "stop_loss": 1.0800,
+>                 "take_profit": 1.0950,
+>                 "risk_percentage": 2.0,
+>                 "notes": "Strong bullish momentum on H4 timeframe",
+>                 "metadata": {"timeframe": "H4", "confidence": "high"}
+>             }
+>         }
+>     )
+  
+> class BulkSignalSubmission(BaseModel):
+>     """Bulk signal submission request."""
+  
+>     strategy_id: str
+>     signals: List[SignalSubmission]
+  
+>     model_config = ConfigDict(
+>         json_schema_extra={
+>             "example": {
+>                 "strategy_id": "123e4567-e89b-12d3-a456-426614174000",
+>                 "signals": [
+>                     {
+>                         "signal_type": "entry",
+>                         "action": "buy",
+>                         "symbol": "EUR/USD",
+>                         "entry_price": 1.0850,
+>                         "stop_loss": 1.0800,
+>                         "take_profit": 1.0950
+>                     }
+>                 ]
+>             }
+>         }
+>     )
+  
+> class SignalUpdate(BaseModel):
+>     """Signal update request."""
+  
+>     status: Optional[str] = Field(None, pattern="^(pending|active|closed|cancelled)$")
+>     exit_price: Optional[Decimal] = None
+>     actual_profit_loss: Optional[Decimal] = None
+>     close_reason: Optional[str] = None
+>     notes: Optional[str] = None
+  
+> class SignalResponse(BaseModel):
+>     """Signal response model."""
+>     id: str
+>     strategy_id: str
+>     strategy_name: str
+>     signal_type: str
+>     action: str
+>     symbol: str
+>     entry_price: float
+>     exit_price: Optional[float] = None
+>     stop_loss: Optional[float] = None
+>     take_profit: Optional[float] = None
+>     profit_loss: Optional[float] = None
+>     profit_loss_percentage: Optional[float] = None
+>     risk_percentage: Optional[float] = None
+>     confidence: float = 0.5
+>     notes: Optional[str] = None
+>     metadata: Optional[Dict] = None
+>     status: str
+>     created_at: datetime
+>     closed_at: Optional[datetime] = None
+> class SignalSettings(BaseModel):
+>     """User signal settings model."""
+>     email_notifications: bool = True
+>     sms_notifications: bool = False
+>     webhook_notifications: bool = False
+>     webhook_url: Optional[str] = None
+>     risk_level: str = "medium"  # low, medium, high
+>     auto_trade: bool = False
+>     max_position_size: Optional[float] = None
+  
+> class SignalStatistics(BaseModel):
+>     """Signal statistics model."""
+>     total_signals: int
+>     winning_signals: int
+>     losing_signals: int
+>     win_rate: float
+>     average_gain: float
+>     average_loss: float
+>     profit_factor: float
+>     sharpe_ratio: float
+  
+> class SignalPerformance(BaseModel):
+>     """Signal performance metrics."""
+>     total_signals: int
+>     active_signals: int
+>     winning_signals: int
+>     losing_signals: int
+>     win_rate: float
+>     average_profit: float
+>     average_loss: float
+>     profit_factor: float
+>     total_pnl: float
+>     best_trade: float
+>     worst_trade: float
+  
+> class DeliveryPreferences(BaseModel):
+>     """Signal delivery preferences."""
+  
+>     email_enabled: bool = True
+>     sms_enabled: bool = False
+>     push_enabled: bool = True
+>     webhook_enabled: bool = False
+>     webhook_url: Optional[str] = None
+>     signal_types: List[str] = ["entry", "exit", "update", "alert"]
+  
+>     model_config = ConfigDict(
+>         json_schema_extra={
+>             "example": {
+>                 "email_enabled": True,
+>                 "sms_enabled": True,
+>                 "push_enabled": True,
+>                 "webhook_enabled": False,
+>                 "webhook_url": "https://example.com/webhook",
+>                 "signal_types": ["entry", "exit"]
+>             }
+>         }
+>     )
+  
+  # API Endpoints
+> @router.get("/", response_model=List[SignalResponse])
+> async def get_signals(
+>     strategy_id: Optional[str] = None,
+>     status: Optional[str] = None,
+>     symbol: Optional[str] = None,
+>     start_date: Optional[datetime] = None,
+>     end_date: Optional[datetime] = None,
+>     skip: int = Query(0, ge=0),
+>     limit: int = Query(20, ge=1, le=100),
+>     current_user=Depends(get_current_user),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """Get signals for subscribed strategies."""
+      # Get user's active subscriptions
+!     subscriptions = (
+!         db.query(StrategySubscription)
+!         .filter(
+!             StrategySubscription.user_id == current_user.id,
+!             StrategySubscription.status == "active"
+!         )
+!         .all()
+!     )
+!     if not subscriptions:
+!         return []
+  
+!     strategy_ids = [sub.strategy_id for sub in subscriptions]
+  
+      # Build query
+!     query = db.query(StrategySignal).filter(
+!         StrategySignal.strategy_id.in_(strategy_ids)
+!     )
+!     if strategy_id and strategy_id in strategy_ids:
+!         query = query.filter(StrategySignal.strategy_id == strategy_id)
+!     if status:
+!         query = query.filter(StrategySignal.status == status)
+!     if symbol:
+!         query = query.filter(StrategySignal.symbol == symbol)
+!     if start_date:
+!         query = query.filter(StrategySignal.created_at >= start_date)
+!     if end_date:
+!         query = query.filter(StrategySignal.created_at <= end_date)
+  
+      # Get signals with pagination
+!     signals = query.order_by(StrategySignal.created_at.desc()).offset(skip).limit(limit).all()
+  
+      # Batch fetch strategies to avoid N+1 queries
+!     signal_strategy_ids = [s.strategy_id for s in signals if s.strategy_id]
+!     strategies = {}
+!     if signal_strategy_ids:
+!         strategy_results = (
+!             db.query(Strategy)
+!             .options(joinedload(Strategy.provider))  # Eager load provider too
+!             .filter(Strategy.id.in_(signal_strategy_ids))
+!             .all()
+!         )
+!         strategies = {s.id: s for s in strategy_results}
+  
+!     response = []
+!     for signal in signals:
+          # Use pre-fetched strategy data
+!         strategy = strategies.get(signal.strategy_id)
+  
+!         response.append(
+!             SignalResponse(
+!                 id=str(signal.id),
+!                 strategy_id=str(signal.strategy_id),
+!                 strategy_name=strategy.name if strategy else "Unknown",
+!                 signal_type=signal.signal_type,
+!                 action=signal.action,
+!                 symbol=signal.symbol,
+!                 entry_price=float(signal.entry_price),
+!                 stop_loss=float(signal.stop_loss) if signal.stop_loss else None,
+!                 take_profit=float(signal.take_profit) if signal.take_profit else None,
+!                 exit_price=float(signal.exit_price) if signal.exit_price else None,
+!                 status=signal.status,
+!                 profit_loss=float(signal.profit_loss) if signal.profit_loss else None,
+!                 profit_loss_percentage=float(signal.profit_loss_percentage) if signal.profit_loss_percentage else None,
+!                 risk_percentage=float(signal.metadata.get("risk_percentage", 0)) if signal.metadata else None,
+!                 notes=signal.notes,
+!                 created_at=signal.created_at,
+!                 closed_at=signal.closed_at
+!             )
+!         )
+  
+!     return response
+  
+> @router.get("/{signal_id}", response_model=SignalResponse)
+> async def get_signal(
+>     signal_id: str,
+>     current_user=Depends(get_current_user),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """Get signal details."""
+!     signal = db.query(StrategySignal).filter(StrategySignal.id == signal_id).first()
+!     if not signal:
+!         raise HTTPException(
+!             status_code=status.HTTP_404_NOT_FOUND, detail="Signal not found"
+!         )
+  
+      # Check if user has access:
+!     subscription = (
+!         db.query(StrategySubscription)
+!         .filter(
+!             StrategySubscription.user_id == current_user.id,
+!             StrategySubscription.strategy_id == signal.strategy_id,
+!             StrategySubscription.status == "active"
+!         )
+!         .first()
+!     )
+!     if not subscription and current_user.role != "admin":
+!         raise HTTPException(
+!             status_code=status.HTTP_403_FORBIDDEN,
+!             detail="You don't have access to this signal"
+!         )
+  
+      # Get strategy info
+!     strategy = db.query(Strategy).filter(Strategy.id == signal.strategy_id).first()
+  
+!     return SignalResponse(
+!         id=str(signal.id),
+!         strategy_id=str(signal.strategy_id),
+!         strategy_name=strategy.name if strategy else "Unknown",
+!         signal_type=signal.signal_type,
+!         action=signal.action,
+!         symbol=signal.symbol,
+!         entry_price=float(signal.entry_price),
+!         stop_loss=float(signal.stop_loss) if signal.stop_loss else None,
+!         take_profit=float(signal.take_profit) if signal.take_profit else None,
+!         exit_price=float(signal.exit_price) if signal.exit_price else None,
+!         status=signal.status,
+!         profit_loss=float(signal.profit_loss) if signal.profit_loss else None,
+!         profit_loss_percentage=float(signal.profit_loss_percentage) if signal.profit_loss_percentage else None,
+!         risk_percentage=float(signal.metadata.get("risk_percentage", 0)) if signal.metadata else None,
+!         notes=signal.notes,
+!         created_at=signal.created_at,
+!         closed_at=signal.closed_at
+!     )
+  
+> @router.post("/submit", status_code=status.HTTP_201_CREATED)
+> async def submit_signal(
+>     signal_data: SignalSubmission,
+>     current_user: User = Depends(get_current_user),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """Submit a new signal with de-duplication and distribution."""
+      # Check if user is a provider
+!     if current_user.role != "provider":
+!         raise HTTPException(
+!             status_code=status.HTTP_403_FORBIDDEN,
+!             detail="Only providers can submit signals"
+!         )
+  
+      # Get provider profile
+!     provider = (
+!         db.query(StrategyProvider)
+!         .filter(StrategyProvider.user_id == current_user.id)
+!         .first()
+!     )
+!     if not provider:
+!         raise HTTPException(
+!             status_code=status.HTTP_400_BAD_REQUEST, 
+!             detail="Provider profile not found"
+!         )
+  
+      # Create signal
+!     signal = StrategySignal(
+!         id=str(uuid.uuid4()),
+!         strategy_id=signal_data.strategy_id,
+!         signal_type=signal_data.signal_type,
+!         action=signal_data.action,
+!         symbol=signal_data.symbol,
+!         entry_price=signal_data.entry_price,
+!         stop_loss=signal_data.stop_loss,
+!         take_profit=signal_data.take_profit,
+!         notes=signal_data.notes,
+!         metadata=signal_data.metadata or {},
+!         status="pending",
+!         created_at=datetime.now(timezone.utc)
+!     )
+  
+!     db.add(signal)
+!     db.commit()
+!     db.refresh(signal)
+  
+      # Get strategy for response
+!     strategy = db.query(Strategy).filter(Strategy.id == signal.strategy_id).first()
+  
+!     return {
+!         "id": str(signal.id),
+!         "strategy_id": str(signal.strategy_id),
+!         "strategy_name": strategy.name if strategy else "Unknown",
+!         "signal_type": signal.signal_type,
+!         "action": signal.action,
+!         "symbol": signal.symbol,
+!         "entry_price": float(signal.entry_price),
+!         "stop_loss": float(signal.stop_loss) if signal.stop_loss else None,
+!         "take_profit": float(signal.take_profit) if signal.take_profit else None,
+!         "status": signal.status,
+!         "created_at": signal.created_at.isoformat(),
+!         "message": "Signal submitted successfully"
+!     }
+  
+> @router.get("/performance/{strategy_id}", response_model=SignalPerformance)
+> async def get_signal_performance(
+>     strategy_id: str,
+>     start_date: Optional[datetime] = Query(None),
+>     end_date: Optional[datetime] = Query(None),
+>     current_user=Depends(get_current_user),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """Get signal performance metrics for a strategy."""
+      # Verify access
+!     subscription = (
+!         db.query(StrategySubscription)
+!         .filter(
+!             StrategySubscription.user_id == current_user.id,
+!             StrategySubscription.strategy_id == strategy_id,
+!             StrategySubscription.status == "active"
+!         )
+!         .first()
+!     )
+  
+      # Also allow providers to see their own strategy performance
+!     provider = (
+!         db.query(StrategyProvider)
+!         .filter(StrategyProvider.user_id == current_user.id)
+!         .first()
+!     )
+  
+!     strategy = db.query(Strategy).filter(Strategy.id == strategy_id).first()
+!     if not subscription and (not provider or strategy.provider_id != provider.id):
+!         raise HTTPException(
+!             status_code=status.HTTP_403_FORBIDDEN,
+!             detail="You don't have access to this strategy's performance"
+!         )
+  
+      # Get signals
+!     query = db.query(StrategySignal).filter(StrategySignal.strategy_id == strategy_id)
+!     if start_date:
+!         query = query.filter(StrategySignal.created_at >= start_date)
+!     if end_date:
+!         query = query.filter(StrategySignal.created_at <= end_date)
+  
+!     signals = query.all()
+  
+      # Calculate metrics
+!     total_signals = len(signals)
+!     active_signals = len([s for s in signals if s.status == "active"])
+!     closed_signals = [
+!         s for s in signals if s.status == "closed" and s.profit_loss is not None
+!     ]
+!     winning_signals = len([s for s in closed_signals if s.profit_loss > 0])
+!     losing_signals = len([s for s in closed_signals if s.profit_loss < 0])
+  
+!     win_rate = (winning_signals / len(closed_signals) * 100) if closed_signals else 0
+  
+!     profits = [float(s.profit_loss) for s in closed_signals if s.profit_loss > 0]
+!     losses = [abs(float(s.profit_loss)) for s in closed_signals if s.profit_loss < 0]
+  
+!     average_profit = sum(profits) / len(profits) if profits else 0
+!     average_loss = sum(losses) / len(losses) if losses else 0
+  
+!     profit_factor = (
+!         (sum(profits) / sum(losses)) if losses else float("inf")
+!     ) if profits else 0
+  
+!     total_pnl = sum(float(s.profit_loss) for s in closed_signals if s.profit_loss)
+  
+!     best_trade = max(profits) if profits else 0
+!     worst_trade = -max(losses) if losses else 0
+  
+!     return SignalPerformance(
+!         total_signals=total_signals,
+!         active_signals=active_signals,
+!         winning_signals=winning_signals,
+!         losing_signals=losing_signals,
+!         win_rate=win_rate,
+!         average_profit=average_profit,
+!         average_loss=average_loss,
+!         profit_factor=profit_factor,
+!         total_pnl=total_pnl,
+!         best_trade=best_trade,
+!         worst_trade=worst_trade
+!     )
+  
+  # Delivery Preferences
+> @router.get("/preferences", response_model=DeliveryPreferences)
+> async def get_delivery_preferences(
+>     current_user=Depends(get_current_user),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """Get signal delivery preferences."""
+!     settings = (
+!         db.query(UserSignalSettings)
+!         .filter(UserSignalSettings.user_id == current_user.id)
+!         .first()
+!     )
+!     if not settings:
+          # Return defaults
+!         return DeliveryPreferences(
+!             email_enabled=True,
+!             sms_enabled=False,
+!             push_enabled=True,
+!             webhook_enabled=False,
+!             webhook_url=None,
+!             signal_types=["entry", "exit", "update", "alert"]
+!         )
+  
+!     return DeliveryPreferences(
+!         email_enabled=settings.email_enabled,
+!         sms_enabled=settings.sms_enabled,
+!         push_enabled=settings.push_enabled,
+!         webhook_enabled=settings.webhook_enabled,
+!         webhook_url=settings.webhook_url,
+!         signal_types=settings.signal_types or ["entry", "exit", "update", "alert"]
+!     )
+  
+> @router.put("/preferences", response_model=DeliveryPreferences)
+> async def update_delivery_preferences(
+>     preferences: DeliveryPreferences,
+>     current_user=Depends(get_current_user),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """Update signal delivery preferences."""
+!     settings = (
+!         db.query(UserSignalSettings)
+!         .filter(UserSignalSettings.user_id == current_user.id)
+!         .first()
+!     )
+!     if not settings:
+!         settings = UserSignalSettings(
+!             user_id=current_user.id, 
+!             created_at=datetime.now(timezone.utc)
+!         )
+!         db.add(settings)
+  
+!     settings.email_enabled = preferences.email_enabled
+!     settings.sms_enabled = preferences.sms_enabled
+!     settings.push_enabled = preferences.push_enabled
+!     settings.webhook_enabled = preferences.webhook_enabled
+!     settings.webhook_url = preferences.webhook_url
+!     settings.signal_types = preferences.signal_types
+!     settings.updated_at = datetime.now(timezone.utc)
+  
+!     db.commit()
+  
+!     return preferences
+  
+> def update_real_performance(db: Session, strategy_id: str, signal):
+>     """Update strategy performance with REAL signal data."""
+>     today = date.today()
+  
+      # Get or create today's performance record
+>     perf = (
+>         db.query(StrategyPerformance)
+>         .filter(
+>             StrategyPerformance.strategy_id == strategy_id,
+>             StrategyPerformance.date == today
+>         )
+>         .first()
+>     )
+>     if not perf:
+>         perf = StrategyPerformance(
+>             id=str(uuid.uuid4()),
+>             strategy_id=strategy_id,
+>             date=today,
+>             total_trades=0,
+>             winning_trades=0,
+>             losing_trades=0
+>         )
+>         db.add(perf)
+  
+      # Get all closed signals for today
+>     closed_today = (
+>         db.query(StrategySignal)
+>         .filter(
+>             StrategySignal.strategy_id == strategy_id,
+>             StrategySignal.status == "closed",
+>             func.date(StrategySignal.closed_at) == today
+>         )
+>         .all()
+>     )
+  
+      # Calculate REAL metrics
+>     winning = [s for s in closed_today if s.profit_loss and s.profit_loss > 0]
+>     losing = [s for s in closed_today if s.profit_loss and s.profit_loss < 0]
+  
+>     perf.total_trades = len(closed_today)
+>     perf.winning_trades = len(winning)
+>     perf.losing_trades = len(losing)
+  
+      # Calculate win rate from REAL data
+>     if closed_today:
+>         perf.win_rate = Decimal(str((len(winning) / len(closed_today)) * 100))
+  
+          # Calculate total return from REAL P&L
+>         total_pl = sum(float(s.profit_loss) for s in closed_today if s.profit_loss)
+>         perf.total_return = Decimal(str(total_pl))
+  
+          # Calculate monthly return (simplified - would need more data for accurate calculation)
+>         perf.monthly_return = Decimal(str(total_pl))  # This month's return
+>     else:
+>         perf.win_rate = Decimal("0")
+>         perf.total_return = Decimal("0")
+>         perf.monthly_return = Decimal("0")
+  
+>     db.commit()
+  
+  # WebSocket for real-time signals
+> @router.websocket("/ws")
+> async def websocket_signals(
+>     websocket: WebSocket, 
+>     token: str = Query(...),
+>     db: Session = Depends(get_db_session)
+> ):
+>     """WebSocket endpoint for real-time signal updates."""
+!     await websocket.accept()
+  
+!     try:
+          # Authenticate user
+!         jwt_manager = JWTManager()
+  
+!         try:
+!             jwt_manager.decode_token(token)  # Validate token
+              # payload = jwt_manager.decode_token(token)  # Reserved for future user validation
+!         except Exception:
+!             await websocket.send_text(json.dumps({"error": "Invalid token"}))
+!             await websocket.close()
+!             return
+  
+          # Send initial connection message
+!         await websocket.send_text(
+!             json.dumps({"type": "connection", "message": "Connected to signal stream"})
+!         )
+  
+          # Keep connection alive and send updates
+!         while True:
+!             try:
+                  # Wait for messages from client
+!                 data = await websocket.receive_text()
+!                 message = json.loads(data)
+!                 if message.get("type") == "ping":
+!                     await websocket.send_text(json.dumps({"type": "pong"}))
+!                 elif message.get("type") == "subscribe":
+!                     strategy_id = message.get("strategy_id")
+                      # Verify subscription and send confirmation
+!                     await websocket.send_text(
+!                         json.dumps({"type": "subscribed", "strategy_id": strategy_id})
+!                     )
+  
+!             except WebSocketDisconnect:
+!                 break
+!             except Exception:
+!                 await websocket.send_text(json.dumps({"error": "An error occurred"}))
+  
+!     except Exception:
+!         await websocket.close()

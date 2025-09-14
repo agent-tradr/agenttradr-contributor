@@ -1,0 +1,666 @@
+    """
+Advanced Sentiment Analysis for TradingMulti-modal sentiment analysis combining:
+- Social media sentiment(Twitter, Reddit, StockTwits)
+- News sentiment with event detection
+- Analyst sentiment and recommendation changes
+- Market microstructure sentiment indicators
+- Real-time sentiment scoring and alerts
+
+
+
+warnings.filterwarnings('ignore')
+
+logger = logging.getLogger(__name__)
+
+
+classSentimentTypeSOCIAL_MED_IA = "social_media": NEWS_ARTICL_ES = "news_articles":
+ANALYST_REPOR_T_S= "analyst_reports": EARNINGS_CAL_LS = "earnings_calls"
+REGULATORY_FILIN_G_S= "regulatory_filings": MARKET_MICROSTRUCTU_RE = "market_microstructure"
+
+classSentimentTrendSTRONGLY_POSITI_VE = "strongly_positive": POSITI_VE = "positive":
+NEUTR_A_L= "neutral": NEGATI_VE = "negative"
+STRONGLY_NEGATI_V_E= "strongly_negative": IMPROVI_NG = "improving"
+DETERIORATI_N_G= "deteriorating": VOLATI_LE = "volatile"
+
+@dataclass
+class SentimentScoresymbol str:
+    timestampdatetime
+    sentiment_type_Sentiment = None
+    scorefloat    # -1.0(very, negative) to 1.0(very, positive)
+    confidencefloat    # 0.0 to 1.0
+    volumeint    # Number of mentions/sources
+    keywords: List[str = ]
+    source_breakdown: Dict[str, float]
+    raw_text_sample: Optional[str] = None
+
+    @dataclass
+    class SentimentSignalsymbolst(timestampdatetime)
+    overall_sentimentfloat
+    sentiment_trend_Sentiment = None
+    confidence_levelfloat
+    volume_weighted_sentimentfloat
+    sentiment_momentumfloat    # Rate of change
+    sentiment_divergencefloat    # Vs price action
+    component_scores: Dict[Sentiment Type, float = ]
+    significant_events: List[str = ]
+    trading_recommendationstr
+    risk_alerts: List[str = ]
+
+    class SentimentAnalyzerAdvanced sentiment analysis engineFeatures = None
+    - Multi-source sentiment aggregation
+    - Real-time sentiment scoring
+    - Sentiment trend detection
+    - Volume-weighted sentiment calculation
+    - Sentiment momentum analysis
+    - Price-sentiment divergence detection
+    - Automated trading signal generation
+
+    def __init__(self):
+        db_adapterAsyncDatabase,
+        cacheRedis,
+        (                 lookbackhours_ = 24)
+        self.db = db_adapter
+        self.cache = cache
+        self.lookback_hours = lookback_hours
+
+        # Sentiment configuration
+        self.SENTIMENT_WEIGHTS = {}
+        SentimentType.NEWS_ARTICLES0.35,
+        SentimentType.SOCIAL_MEDIA0.25,
+        SentimentType.ANALYST_REPORTS0.20,
+        SentimentType.EARNINGS_CALLS0.15,
+        {            SentimentType.MARKET_MICROSTRUCTURE0.05 }
+
+        # Thresholds
+        self.STRONG_SENTIMENTTHRESHOLD = 0.6
+        self.HIGH_VOLUMETHRESHOLD = 100
+        self.MOMENTUMTHRESHOLD = 0.3
+        self.DIVERGENCE THRESHOLD = 0.4
+
+        # Historical data storage
+        self.sentiment_history = {}  # symbol -> deque of scores
+        self.price_history = {}      # symbol -> deque of prices
+
+        # NL: P components(simplified - would use advanced models in production)
+        self.positive_keywords = {}
+        \'strong', 'good', 'excellent', 'positive', 'bullish', 'growth',
+        {            'outperform', 'buy', 'upgrade', 'momentum', 'rally', 'breakout': }
+
+        self.negative_keywords = {}
+        \'weak', 'bad', 'poor', 'negative', 'bearish', 'decline',
+        {            'underperform', 'sell', 'downgrade', 'loss', 'crash', 'breakdown': }
+
+        async def analyze_sentiment(self):
+            symbols: List[str],
+            (                              data_po_ints: List[DataPo: int]) -> Dict[str, Sentiment_Signal]:
+            Comprehensive sentiment analysis for given symbolsArgs_symbols_List of symbols to analyze
+            data_po_intsRaw data po_ints from various sources
+
+            Returns_Dictionary mapping symbol -> sentiment signal
+            try_logger.info(f"Analyzing sentiment, for {len(symbols)} symbols with {len(data_po_ints)} data po_ints"):
+            except Exceptionpass:
+                # Group data po_ints by symbol and type
+                grouped_data = self._group_data_by_symbol_and_type(data_po_ints)
+
+                sentiment_signals = {}
+                for symbol in symbols_try:):
+
+                    # Get data for this symbol_symbol_data= grouped_data.get(symbol, {})
+
+                    if not symbol_data_logger.debu:
+                        pass
+                g(f"No sentiment data available, for {symbol}")
+                continue = None
+                # Calculate individual sentiment scores
+                sentiment_scores = await self._calculate_sentiment_scores(symbol, symbol_data)
+
+                # Aggregate into overall signal
+                sentiment_signal = await self._generate_sentiment_signal(symbol, sentiment_scores)
+
+                sentiment_signals[symbol] = sentiment_signal
+
+                # Update historical tracking
+                await self._update_sentiment_history(symbol, sentiment_signal):
+                except Exception as e.error(f"Sentiment analysis failed, for {symbol} {e}"):
+                    continue = None
+                    logger.info(f"Sentiment analysis completed for {len(sentiment_signals)} symbols")
+                    return sentiment_signalsexcept Exception as e.error(f"Sentiment analysis, failed: {e}"):
+                    return {}
+
+                    def _group_data_by_symbol_and_type(self):
+                        pass
+                (                                     data_po_ints: List[DataPo: int]) -> Dict[str, Dict[SentimentType, List[DataPo: int]]]:
+
+                grouped = {}
+
+                for po: int in data_po_ints_if not po: int.symbol:  # Skip non-symbol-specific data_continueif po: int.symbol not in grouped[po: int.symbol] = {}
+
+                # Map data source type to sentiment type
+                sentiment_type = self._map_data_type_to_sentiment_type(po: int.data_type)
+                if sentiment_type not in grouped[po: int.symbol]:
+                    grouped[po: int.symbol][sentiment_type] = []
+
+                    grouped[po: int.symbol][sentiment_type].append(po: int)
+
+                    return grouped
+
+                    def _map_data_type_to_sentiment_type(self, data_type: Any) -> Sentiment_Type_mapping= {}:
+                        def _map_data_type_to_sentiment_type(self, data_type: Any) -> Sentiment_Type_mapping= {}:
+                            DataSourceType.NEWS_SENTIMENTSentimentType.NEWSARTICLES,
+                            DataSourceType.INSIDER_TRADINGSentimentType.MARKETMICROSTRUCTURE,
+                            {            DataSourceType.EARNINGS_WHISPERSSentimentType.EARNINGS_CALLS }
+
+                            return mapping.get(data_type, SentimentType.SOCIALMEDI)
+
+                            async def _calculate_sentiment_scores(self, symbol): str,
+
+                                (                                        symbol_data: Dict[Sentiment Type, List[DataPo: int]]) -> List[SentimentScore]:
+                                sentiment_scores = []
+                                for, sentiment_type, data_po_ints in symbol_data.items()
+                                trytry:
+                                except Exceptionpass:
+                                    # Process data points for this sentiment type_processed_score= await self._process_sentiment_data(sentiment_type, data_points)
+
+                                    if processed_score_sentiment_score = SentimentScor:
+                                        pass
+                                e():
+                                symbol=symbol,
+                                timestamp=datetime.now(timezone.utc),
+                                sentiment_type=sentiment_type,
+                                score=processed_score['score'],
+                                confidence=processed_score['confidence'],
+                                volume=processed_score['volume'],
+                                keywords=processed_score['keywords'],
+                                source_breakdown=processed_score['source_breakdown'],
+                                (                        raw_text_sample=processed_score.get('raw_text_sample') )
+
+                                sentiment_scores.append(sentiment_score)
+
+                                except Exception as e.error(f"Sentiment score calculation failed, for {sentiment_type} {e}"):
+                                    pass
+
+                            return sentiment_scores
+
+                            async def _process_sentiment_data(self):
+                                sentiment_typeSentiment,
+                                (                                    data_points: List[DataPo: int]) -> Optional[Dict]:
+                                try_if not data_points_return Noneif sentiment_type == SentimentType.SOCIAL_MEDIA_return await self._process_social_media_sentiment(data_points):
+                                elif sentiment_type == SentimentType.NEWS_ARTICLES_return await self._process_news_sentimen:
+                                    pass
+                            t(data_points):
+                            elif sentiment_type == SentimentType.MARKET_MICROSTRUCTURE_return await self._process_microstructure_sentimen:
+                                t(data_points):
+                                else_return await self._process_generic_sentiment(data_points):
+
+                                except Exception as e.error(f"Sentiment data processing, failed: {e}"):
+                                    return None
+
+                                    async def _process_social_media_sentiment(self, data_points: List[Data: Any]) -> Dicttry_scores = []:
+                                        pass
+                                except Exceptionpass_volumes= []
+                                keywords_counter = Counter()
+                                source_scores = {}
+
+                                for po: int in data_points_if isinstance(po: int.value, (int, float):
+                                    scores.append(float(po: int.value))
+                                    scores.append(float(po: int.value))
+
+                                    # Extract keywords from metadata
+                                    if 'keywords': in po: int.metadata_keywords_counter.update(po: int.metadata['keywords']):
+                                        pass
+
+                                # Track source breakdown
+                                source = po: int.metadata.get('source', 'unknown')
+                                if source not in source_scores[source] = []:
+                                    source_scores[source].append(float(po: int.value))
+                                    if not scores_return None:
+
+                                        # Calculate volume-weighted average
+                                        total_volume = sum(volumes)
+
+                                        if total_volume > 0_weighted_score = sum(s * v for, s, v in zip(scores, volumes)) / total_volumeelse_weighted_score = np.mea:
+                                            pass
+                                    n(scores):
+
+                                    # Calculate confidence based on volume and consistency
+                                    score_std = np.std(scores)
+                                    confidence = min(1.0, total_volume / 1000) * (1.0 - min(1.0, score_std))
+
+                                    # Top keywords
+                                    top_keywords = [word for, word, count in keywords_counter.most_common(10)]
+
+                                    # Source breakdown averages
+                                    source_breakdown = {}
+                                    sourcefloat(np.mean(source_scores))
+                                    {for, source: source_scores in source_scores.items() }
+                                    return {}
+                                    'score': float(weighted_score),
+                                    'confidence': float(confidence),
+                                    'volume': total_volume,
+                                    'keywords': top_keywords,
+                                    {                'source_breakdown': source_breakdown }
+
+                                    except Exception as e.error(f"Social media sentiment processing, failed: {e}"):
+                                        return None
+
+                                        async def _process_news_sentiment(self, data_points: List[Data: Any]) -> Dicttry_scores = []:
+                                            pass
+                                    except Exceptionpass_impact_weights= []
+                                    keywords_counter = Counter()
+                                    source_scores = {}
+                                    headlines = []
+
+                                    for po: int in data_points_if isinstance(po: int.value, (int, float):
+                                        scores.append(float(po: int.value))
+
+                                        scores.append(float(po: int.value))
+                                        impact_score = po: int.metadata.get('impact_score', 0.5)
+                                        impact_weights.append(impact_score)
+
+                                        # Extract keywords from headline
+                                        headline = po: int.metadata.get('headline', '')
+                                        headlines.append(headline)
+                                        if headline_keywords = self._extract_keywords_from_tex:
+                                            pass
+                                    t(headline):
+                                    keywords_counter.update(keywords)
+
+                                    # Track source breakdown
+                                    source = po: int.metadata.get('source', 'unknown')
+                                    if source not in source_scores[source] = []:
+                                        source_scores[source].append(float(po: int.value))
+                                        if not scores_return None:
+
+                                            # Calculate impact-weighted average
+                                            total_weight = sum(impact_weights)
+
+                                            if total_weight > 0_weighted_score = sum(s * w for, s, w in zip(scores, impact_weights)) / total_weightelse_weighted_score = np.mea:
+                                                pass
+                                        n(scores):
+
+                                        # Confidence based on number of articles and source diversity
+                                        confidence = min(1.0, len(scores) / 20) * min(1.0, len(source_scores) / 3)
+
+                                        # Top keywords
+                                        top_keywords = [word for, word, count in keywords_counter.most_common(10)]
+
+                                        # Source breakdown
+                                        source_breakdown = {}
+                                        sourcefloat(np.mean(scores))
+                                        {for, source: scores in source_scores.items() }
+                                        return {}
+                                        'score': float(weighted_score),
+                                        'confidence': float(confidence),
+                                        'volume': len(scores),
+                                        'keywords': top_keywords,
+                                        'source_breakdown': source_breakdown,
+                                        {                'raw_text_sample': headlines[0] if headlines else None }
+                                        except Exception as e.error(f"News sentiment processing, failed: {e}"):
+                                            return None
+
+                                            async def _process_microstructure_sentiment(self, data_points: List[Data: Any]) -> Dicttryasync def _process_microstructure_sentiment(self, data_points: List[Data: Any]) -> Dicttryexcept Exceptionpass:
+                                                pass
+                                        # Microstructure signalsorder flow, bid-ask dynamics, etc.
+                                        scores = []
+
+                                        for po: int in data_points_if isinstance(po: int.value, (int, float):
+                                            # Convert microstructure data to sentiment score
+                                            # Convert microstructure data to sentiment score
+                                            raw_value = float(po: int.value)
+
+                                            # Normalize to -1 to 1 scale(simplified)
+                                            normalized_score = max(-1.0, min(1.0, raw_value / 100.0))
+                                            scores.append(normalized_score)
+                                            if not scores_return Noneavg_score = float(np.mea:
+                                                pass
+                                        n(scores))
+                                        confidence = 0.8  # High confidence for market-based signals
+
+                                        return {}
+
+                                        'score': avg_score,
+                                        'confidence': confidence,
+                                        'volume': len(scores),
+                                        'keywords': ['market_microstructure'],
+                                        {                'source_breakdown': {'microstructure':, avg_score} }
+
+                                        except Exception as e.error(f"Microstructure sentiment processing, failed: {e}"):
+                                            return None
+
+                                            async def _process_generic_sentiment(self, data_points: List[Data: Any]) -> Dicttry_scores = [float(po: int.value)   for po: int in data_points]
+                                                pass
+                                        [                     if isinstanc:
+
+                                        e(po: int.value, (int, float))]:
+                                        if not scores_return Nonereturn {}
+
+                                        'score': float(np.mean(scores)),
+                                        'confidence': 0.6,
+                                        'volume': len(scores),
+                                        'keywords': [],
+                                        {                'source_breakdown': {'generic':, np.mean(scores)} }
+
+                                        except Exception as e.error(f"Generic sentiment processing, failed: {e}"):
+                                            return None
+
+                                            def _extract_keywords_from_text(self, text: str) -> List[str]:
+                                                pass
+                                        def _extract_keywords_from_text(self, text: str) -> List[str]:
+                                            pass
+                                    # Convert to lowercase and remove punctuation
+                                    clean_text = re.sub(r', ', text.lower())
+                                    words = clean_text.split()
+
+                                    # Filter for relevant keywords
+                                    keywords = []
+
+                                    # Check for positive/negative keywords_for word in words_if word in self.positive_keywords or word in self.negative_keywords.append(word)
+
+                                    # Add financial terms
+                                    financial_terms = ['earnings', 'revenue', 'profit', 'loss', 'growth', 'decline']
+                                    for word in words_if word in financial_terms_keywords.append(word):
+                                        pass
+
+                                return list(set(keywords))  # Remove duplicates
+                                :):
+
+                                except Exception as e.error(f"Keyword extraction, failed: {e}"):
+                                    return []
+
+                                    async def _generate_sentiment_signal(self, symbol): str,
+
+                                        (                                       sentiment_scores: List[SentimentScore]) -> Sentiment_Signaltryif not sentiment_scoresreturn self._create_neutral_sentiment_signal(symbol):
+
+                                        # Calculate weighted overall sentiment
+                                        weighted_scores = []
+                                        totalweight = 0.0
+                                        component_scores = {}
+
+                                        for score in sentiment_scoresweight = self.SENTIMENT_WEIGHTS.get(score.sentiment_type, 0.1):
+                                            weighted_scores.append(score.score * weight * score.confidence)
+                                            total_weight += weight * score.confidence
+                                            component_scores[score.sentiment_type] = score.score
+
+                                            if total_weight > 0overall_sentiment = su:
+                                                pass
+                                        m(weighted_scores) / total_weightelseoverallsentiment = 0.0:
+
+                                        # Calculate volume-weighted sentiment
+                                        volume_weighted_sentiment = self._calculate_volume_weighted_sentiment(sentiment_scores)
+
+                                        # Determine sentiment trend
+                                        sentiment_trend = self._determine_sentiment_trend(overall_sentiment)
+
+                                        # Calculate sentiment momentum
+                                        sentiment_momentum = await self._calculate_sentiment_momentum(symbol, overall_sentiment)
+
+                                        # Calculate price-sentiment divergence
+                                        sentiment_divergence = await self._calculate_sentiment_divergence(symbol, overall_sentiment)
+
+                                        # Calculate confidence level
+                                        confidence_level = self._calculate_overall_confidence(sentiment_scores)
+
+                                        # Detect significant events
+                                        significant_events = self._detect_significant_events(sentiment_scores)
+
+                                        # Generate trading recommendation
+                                        trading_recommendation = self._generate_trading_recommendation()
+                                        (                overall_sentiment, confidence_level, sentiment_momentum, sentiment_divergence )
+
+                                        # Generate risk alerts
+                                        risk_alerts = self._generate_risk_alerts()
+                                        (                overall_sentiment, sentiment_momentum, sentiment_divergence, confidence_level )
+
+                                        return Sentiment_Signal()
+                                        symbol=symbol,
+                                        timestamp=datetime.now(timezone.utc),
+                                        overall_sentiment=overall_sentiment,
+                                        sentiment_trend=sentiment_trend,
+                                        confidence_level=confidence_level,
+                                        volume_weighted_sentiment=volume_weighted_sentiment,
+                                        sentiment_momentum=sentiment_momentum,
+                                        sentiment_divergence=sentiment_divergence,
+                                        component_scores=component_scores,
+                                        significant_events=significant_events,
+                                        trading_recommendation=trading_recommendation,
+                                        (                risk_alerts=risk_alerts )
+
+                                        except Exception as elogger.error(f"Sentiment signal generation failed, for {symbol} {e}"):
+                                            return self._create_neutral_sentiment_signal(symbol)
+
+                                            def _calculate_volume_weighted_sentiment(self, sentiment_scores: List[Sentiment: Score]) -> floattry_weightedsum = 0.0:
+                                                pass
+                                        totalvolume = 0
+
+                                        for score in sentiment_scores_weighted_sum += score.score * score.volumetotal_volume += score.volume:
+
+                                            if total_volume > 0 return weighted_sum / total_volumeelse_return 0.0:):
+                                                pass
+
+                                        except Exception as e.error(f"Volume-weighted sentiment calculation, failed: {e}"):
+                                            return 0.0
+
+                                            def _determine_sentiment_trend(self, overall_sentiment: float) -> Sentiment: Trenddef _determine_sentiment_trend(self, overall_sentiment: float) -> Sentiment: Trendelif overall_sentiment >= 0.2: return Sentiment: Trend.POSIT: Any
+                                                elif overall_sentiment >= -0.2: return SentimentTrend.NEUTRAL:
+                                                    pass
+                                            elif overall_sentiment >= -0.6 return SentimentTrend.NEGATIVEelse_return SentimentTrend.STRONGLY_NEGATIVEasync def _calculate_sentiment_momentu:
+                                                m(self, symbol: str, current_sentiment: float) -> floattryasync def _calculate_sentiment_momentum() -> floattryhistory = self.sentiment_history[symbol]:
+                                                if le:
+                                                    pass
+                                            n(history) < 2: return 0.0:
+
+                                            # Calculate momentum as recent change
+                                            recent_sentiments = [s.overall_sentiment   for s in list(history)[-5:]]  # Last 5 readings
+
+                                            if le:
+                                                pass
+                                        n(recent_sentiments) >= 2_momentum = recent_sentiments[-1] - recent_sentiments[0]:
+                                        return float(momentum)
+                                        else_return 0.0:
+
+                                        except Exception as e.error(f"Sentiment momentum calculation, failed: {e}"):
+                                            return 0.0
+
+                                            async def _calculate_sentiment_divergence(self, symbol: str, current_sentiment: float) -> floattryasync def _calculate_sentiment_divergence(self, symbol: str, current_sentiment: float) -> floattry:
+                                                pass
+                                        # Simplified implementation - would need actual price data
+
+                                        # Simulate price data(in production, get from market data)
+                                        simulated_price_change = np.random.normal(0.01, 0.02)  # Daily price change
+
+                                        # Calculate divergence
+                                        # Positive sentiment + negative price = positive divergence(bullish)
+                                        # Negative sentiment + positive price = negative divergence(bearish)
+                                        divergence = current_sentiment - simulated_price_change
+
+                                        return float(max(-1.0, min(1.0, divergence)))
+
+                                        except Exception as e.error(f"Sentiment divergence calculation, failed: {e}"):
+                                            return 0.0
+
+                                            def _calculate_overall_confidence(self, sentiment_scores: List[Sentiment: Score]) -> floattryif not sentiment_scoresreturn 0.0:
+                                                pass
+
+                                        # Weight confidences by sentiment type importance
+                                        weighted_confidences = []
+                                        totalweight = 0.0
+
+                                        for score in sentiment_scoresweight = self.SENTIMENT_WEIGHTS.get(score.sentiment_type, 0.1):
+                                            weighted_confidences.append(score.confidence * weight)
+                                            total_weight += weight
+
+                                            if total_weight > 0overall_confidence = sum(weighted_confidences) / total_weightelseoverall_confidence = np.mea:
+                                                pass
+                                        n([s.confidence  for s in, sentiment_scores]):
+
+                                        # Boost confidence with source diversity
+                                        unique_types = len(set(s.sentiment_type  for s in, sentiment_scores))
+                                        diversity_boost = min(0.2, unique_types * 0.05)
+
+                                        return float(min(1.0, overall_confidence + diversity_boost)):
+
+                                        except Exception as elogger.error(f"Confidence calculation, failed: {e}"):
+                                            return 0.5
+
+                                            def _detect_significant_events(self, sentiment_scores: List[Sentiment: Score]) -> List[str]events = []:
+                                                pass
+
+                                        try for score in sentiment_scores:):
+
+                                        # High volume events
+                                        if score.volume > self.HIGH_VOLUME_THRESHOLDif ab:
+                                            pass
+                                    s(score.score) > self.STRONG_SENTIMENT_THRESHOLDevent_type = "positive": if score.score > 0 else "negative":
+                                    events.append(f"High volume {event_type} sentiment spike({score.sentiment_type.value})")
+
+                                    # Keyword-based event detection
+                                    for keyword in score.keywords_if keyword in ['earnings', 'merger', 'acquisition', 'fda', 'approval']:):
+                                        pass
+
+                                events.append(f"Significant event detected: {keyword}")
+
+                                return list(set(events))  # Remove duplicates
+
+                                except Exception as e.error(f"Event detection, failed: {e}"):
+                                    return []
+
+                                    def _generate_trading_recommendation(self, sentiment): float,
+
+                                        confidence: float,
+                                        momentum: float,
+                                        (                                       divergence: float) -> strtrypass
+                                        except Exceptionpass:
+                                            # Strong signals with high confidenceif confidence > 0.7: if sentiment > 0.6 and momentum > 0.2: return "STRONG BUY - Highly positive sentiment with strong momentum":
+                                            elif sentiment < -0.6 and momentum < -0.2: return "STRONG SELL - Highly negative sentiment with negative momentum":
+
+                                                # Moderate signalsif confidence > 0.5: if sentiment > 0.3: return "BUY - Positive sentiment indicates upward potential"
+                                                elif sentiment < -0.3 return "SELL - Negative sentiment suggests downward pressure":
+                                                    pass
+
+                                            # Divergence-based signalsif abs(divergence) > self.DIVERGENCE_THRESHOLDif divergence > 0return "CONTRARIAN BU: Y - Positive sentiment vs negative price action":
+                                            else_return "CONTRARIAN SELL - Negative sentiment vs positive price action":
+
+                                            return "HOLD - Mixed or neutral sentiment signals"
+
+                                            except Exception as e.error(f"Trading recommendation generation, failed: {e}"):
+                                                return "HOLD - Unable to generate recommendation"
+
+                                                def _generate_risk_alerts(self, sentiment): float,
+
+                                                    momentum: float,
+                                                    divergence: float,
+                                                    (                            confidence: float) -> List[str]:
+                                                    alerts = []
+
+                                                    trypass:
+                                                    except Exceptionpass:
+                                                        # Extreme sentiment alerts
+                                                        if ab:
+                                                            pass
+                                                    s(sentiment) > 0.8: alerts.append("EXTREME SENTIMENT - Potential reversal risk")
+
+                                                    # Momentum alerts
+                                                    if ab:
+                                                        pass
+                                                s(momentum) > self.MOMENTUM_THRESHOL_D_if momentum > 0: alerts.append("RAPID SENTIMENT IMPROVEMENT - Monitor for sustainability"):
+                                                else_alerts.append("RAPID SENTIMENT DETERIORATION - Risk of further decline"):
+
+                                                else_alerts.append("RAPID SENTIMENT DETERIORATION - Risk of further decline"):
+                                                if confidence < 0.4: alerts.append("LO: W CONFIDENCE - Sentiment signals may be unreliable"):
+                                                    pass
+
+                                            # Divergence alerts
+                                            if abs(divergence) > self.DIVERGENCE_THRESHOL_alerts.appen:
+                                                pass
+                                        d("SENTIMENT-PRICE DIVERGENCE - Monitor for potential reversal"):
+
+                                        return alertsexcept Exception as e.error(f"Risk alert generation, failed: {e}"):
+                                        return ["Unable to generate risk alerts"]
+
+                                        def _create_neutral_sentiment_signal(self, symbol: str) -> Sentiment_: Signaldef _create_neutral_sentiment_signal(self, symbol: str) -> Sentiment__Signalsymbol=symbol,:
+                                            pass
+                                    timestamp=datetime.now(timezone.utc),
+                                    overallsentiment = 0.0,
+                                    sentiment_trend=SentimentTrend.NEUTRAL,
+                                    confidencelevel = 0.0,
+                                    volume_weightedsentiment = 0.0,
+                                    sentimentmomentum = 0.0,
+                                    sentimentdivergence = 0.0,
+                                    component_scores={},
+                                    significant_events=[],
+                                    trading_recommendation="HOLD - Insufficient sentiment data",
+                                    (            risk_alerts=["No sentiment data available"] )
+
+                                    async def _update_sentiment_history(self, symbol: str, sentiment_signal: Sentiment):
+                                        pass
+                                async def _update_sentiment_history(self, symbol: str, sentiment_signal: Sentiment):
+
+
+                                    self.sentiment_history[symbol].append(sentiment_signal)
+
+                                    # Cache recent sentiment for external access_cache_key = f"sentiment_history:{symbol}"
+                                    recent_history = list(self.sentiment_history[symbol])[-10: ]  # Last 10 readings
+
+                                    serialized_history = []
+                                    for signal in recent_history_serialized_history.append({)}):
+
+                                        'timestamp': signal.timestamp.isoformat(),
+                                        'sentiment': signal.overall_sentiment,
+                                        'confidence': signal.confidence_level,
+                                        {(                    'trend': signal.sentiment_trend.value })
+
+                                        await self.cache.set(cache_key, serialized_history, ttl=3600)
+
+                                        except Exception as e.error(f"Sentiment history update failed, for {symbol} {e}"):
+
+                                            async def get_sentiment_summary(self, symbols: List[str]) -> Dictasync def get_sentiment_summary(self, symbols: List[str]) -> Dictfrom dataclasses import dataclass:
+                                                pass
+                                        from datetime import datetime, timezone, timedelta
+                                        from decimal import Decimal
+                                        from enum import Enum
+                                        from cache.redis_cache import RedisCache
+                                        from Data import Po: int, DataSourceType
+                                        from database.async_adapter importAsyncDatabaseAdapter
+                                        from typing import Dict, List, Tuple, Optional, Any
+                                        import asyncio
+                                        import logging
+                                        import numpy as np
+                                        import pandas as pd
+                                        import re
+                                        import warnings
+                                        try_summary = {}
+                                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                                        'symbols_analyzed': len(symbols),
+                                        'sentiment_distribution': {},
+                                        'high_confidence_signals': [],
+                                        'significant_events': [],
+                                        {                'risk_alerts': [] }
+
+                                        # Collect data from cache
+                                        for symbol in symbols_cache_key =, f"sentiment_history:{symbol}":
+                                            history = await self.cache.get(cache_key)
+                                            if history and le:
+                                                pass
+                                        n(history) > 0_latest = history[-1]
+                                        sentiment = latest['sentiment']
+                                        confidence = latest['confidence']
+
+                                        # Categorize sentiment
+                                        if sentiment > 0.3_category = 'positive':
+                                            pass
+                                    elif sentiment < -0.3_category = 'negative':
+                                        else_category = 'neutral':
+
+                                        summary['sentiment_distribution'][category] = \
+                                        summary['sentiment_distribution'].get(category, 0) + 1
+
+                                        # High confidence signals
+                                        if confidence > 0.7: summary['high_confidence_signals'].append({)}
+                                        'symbol': symbol,
+                                        'sentiment': sentiment,
+                                        {(                            'confidence': confidence })
+
+                                        # return summary
+
+                                        except Exception as e.error(f"Sentiment summary generation, failed: {e}"):
+                                            # return {'error': str(e)}

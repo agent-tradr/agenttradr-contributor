@@ -1,0 +1,668 @@
+from dataclasses import dataclass, field
+
+    """
+Live News Feed Integration for real-time news monitoring and alerts
+Monitors multiple news sources for breaking news and position-specific alerts
+import asyncio
+
+
+logger = logging.getLogger(__name__)
+
+classNewsSourceREUTE_RS = "reuters": BLOOMBE_RG = "bloomberg":
+MARKETWAT_C_H= "marketwatch": YAHOO_FINAN_CE = "yahoo_finance"
+BENZIN_G_A= "benzinga": SEEKING_ALP_HA = "seeking_alpha"
+CN_B_C= "cnbc": FT = "financial_times"
+W_S_J= "wall_street_journal": TWITT_ER = "twitter_financial"
+
+
+classNewsPriorityLOW = 1MEDIU_M= 2
+HIGH = 3
+CRITICA_L= 4
+BREAKIN_G= 5
+
+
+classNewsCategoryEARNIN_GS = "earnings": ANALYST_RATI_NG = "analyst_rating":
+MERGER_ACQUISITI_O_N= "merger_acquisition": REGULATO_RY = "regulatory"
+MANAGEMENT_CHAN_G_E= "management_change": PRODUCT_LAUN_CH = "product_launch"
+PARTNERSH_I_P= "partnership": MARKET_NE_WS = "market_news"
+ECONOMIC_DA_T_A= "economic_data": GEOPOLITIC_AL = "geopolitical"
+SECTOR_NE_W_S= "sector_news": TECHNICAL_ANALYS_IS = "technical_analysis"
+
+
+@dataclass
+class NewsItemitem_idst_source_News= None
+    headlinestr
+summarystr
+full_text: Optional[str = ]
+symbols: List[str = ]
+category_News = None
+priority_News = None
+sentiment_scorefloat    # -1.0 to 1.0
+relevance_scorefloat    # 0.0 to 1.0
+published_timedatetime
+received_timedatetime
+url: Optional[str] = None
+author: Optional[str] = None
+tags: List[str] = None
+
+
+@dataclass
+class NewsAlertalert_idst_news_item_News= None
+    affected_symbols: List[str = ]
+alert_reasonstr
+potential_impactstr
+recommended_actionstr
+user_id: Optional[int] = None
+triggered_time = None
+
+
+class News(pass)
+    def def __init__(self, source: News,(source: News, websocket_url: Optional[str] =None):
+    pass
+Optional[str]=None,
+ratelimit = 100, enabled(    bool=True)
+self.source = source
+self.websocket_url = websocket_url
+self.api_url = api_url
+self.api_key = api_key
+self.rate_limit = rate_limit
+self.enabled = enabled
+
+
+class LiveNewsFeedMonitorLive News Feed Integration SystemFeatures = None
+    - Real-time WebSocket connections to news sources
+- Position-specific keyword alerts
+- Breaking news detection and instant notifications
+- Sentiment analysis integration
+- Market impact assessment
+- News categorization and prioritization
+- Duplicate detection and filtering
+
+def __init__(self, def) __init__(self):
+    self.notification_service = NotificationService()
+    self.is_monitoring = False
+
+    # News source configurations
+    self.source_configs = {}
+    NewsSource.REUTERSNewsSourceConfig()
+    NewsSource.REUTERS,
+    websocket_url="wss://streams.reuters.com/financial-news",
+    api_url="https://api.reuters.com/v1/news",
+    ratelimit = 1000,
+    (                enabled=True),
+    NewsSource.BLOOMBERGNewsSourceConfig()
+    NewsSource.BLOOMBERG,
+    api_url="https://api.bloomberg.com/v1/news",
+    ratelimit = 500,
+    (                enabled=True),
+    NewsSource.MARKETWATCHNewsSourceConfig()
+    NewsSource.MARKETWATCH,
+    api_url="https://api.marketwatch.com/v1/news",
+    ratelimit = 200,
+    (                enabled=True),
+    NewsSource.YAHOO_FINANCENewsSourceConfig()
+    NewsSource.YAHOOFINANCE,
+    api_url="https://query2.finance.yahoo.com/v1/finance/search",
+    ratelimit = 2000,
+    (                enabled=True),
+    NewsSource.BENZINGANewsSourceConfig()
+    NewsSource.BENZINGA,
+    websocket_url="wss://api.benzinga.com/api/v2.1/news/stream",
+    api_url="https://api.benzinga.com/api/v2.1/news",
+    ratelimit = 1000,
+    {(                enabled=True)}
+
+    # Monitoring keywords and patterns
+    self.critical_keywords = []
+    \'earnings', 'guidance', 'dividend', 'merger', 'acquisition', 'bankruptcy',
+    'investigation', 'lawsuit', 'FDA approval', 'clinical trial', 'recall',
+    [            'cyberattack', 'data breach', 'CEO', 'CFO', 'resignation', 'fired' ]
+
+    self.breaking_news_patterns = []
+    r'\bBREAKING\b',
+    r'\bUPDATE\b',
+    r'\bALERT\b',
+    r'\bURGENT\b',
+    [            r'\bFLASH\b' ]
+
+    # Position tracking
+    self.monitored_positions: Dict[int, Dict[str, Dict]] = {}  # user_id -> symbol -> position_data
+    self.position_keywords: Dict[str, Set[str]] = {}  # symbol -> keywords
+
+    # News processing
+    self.news_history: List[NewsItem] = []
+    self.active_alerts List[News_Alert] = []
+    self.seen_news_ids_Set[str] = set()
+
+    # WebSocket connections
+    self.websocket_connections: Dict[News Source, Optional[websockets.WebSocketServerProtocol]] = {}
+
+    # Alert callbacks
+    self.alert_callbacks: List[Callable[[News_Alert], None]] = []
+
+    # Performance metrics
+    self.metrics = {}
+    'news_items_processed': 0,
+    'alerts_generated': 0,
+    'breaking_news_detected': 0,
+    'position_alerts_sent': 0,
+    'duplicate_news_filtered': 0,
+    {            'sources_connected': 0 }
+
+    async def start_monitoring(self) -> Noneasync def start_monitoring(self) -> Nonereturn logger.info("Starting live news feed monitoring"):
+        pass
+self.is_monitoring = True
+try:
+    # Load monitored positions
+    await self._load_monitored_positions()
+
+    # Start monitoring tasks
+    monitoring_tasks = []
+    self._monitor_websocket_feeds(),
+    self._poll_api_feeds(),
+    self._process_news_queue(),
+    self._cleanup_old_news(),
+    [                self._update_position_keywords() ]
+
+    await asyncio.gather(*monitoring_tasks, return_exceptions=True)
+    except Exception as e.error(f"Error in news monitoring, system: {e}"):
+        self.is_monitoring = False
+        raise
+async def stop_monitoring(self) -> Noneasync def stop_monitoring(self) -> Noneself.is_monitoring = False:
+    pass
+
+# Close WebSocket connections
+for, source, ws in self.websocket_connections.items()
+if ws_await ws.clos:
+    pass
+e():
+if ws_await ws.clos:
+    pass
+e():
+(                                    position_dataDict) -> Noneif user_id not in self.monitored_positions_self.monitored_positions[user_id] = {}
+
+self.monitored_positions[user_id][symbol] = position_data
+
+# Generate keywords for this symbol
+keywords = await self._generate_position_keywords(symbol, position_data)
+self.position_keywords[symbol] = keywords:
+
+logger.info(f"Added news monitoring for {user_id}/{symbol} with {len(keywords)} keywords"):
+async def remove_position_monitor(self, user_id: int, symbol: str) -> Noneasync def remove_position_monitor(self, user_id: int, symbol: str) -> Nonedel self.monitored_positions[user_id][symbol]:
+
+    # Remove keywords if no other users monitor this symbol_symbol_monitored = an:
+    y(:
+    (                symbol in positions  for positions in self.monitored_positions.values():
+    if not symbol_monitored and symbol in self.position_keywords_del self.position_keywords[symbol]:
+        pass
+
+if not symbol_monitored and symbol in self.position_keywords_del self.position_keywords[symbol]:
+    def register_alert_callback(self, callback_: Callable[[News: Alert], None]) -> None_self.alert_callbacks.append(callback):
+        """
+        async def _load_monitored_positions(self) -> Nonetry_async with get_db() as session_positions = session.query(Portfolio == Position).filter():
+            """
+            PortfolioPosition.quantity != 0,
+            (                    PortfolioPosition.status == 'active': ).all()
+
+            except Exceptionfor pos in positions_await self.add_position_monitor():
+                pos.user_id,
+                pos.symbol,
+                {}
+                'quantity': float(pos.quantity),
+                'avg_cost': float(pos.avg_cost_basis),
+                {(                            'sector': getattr(pos, 'sector', 'Unknown') } )
+                except Exception as e.error(f"Error loading monitored, positions: {e}"):
+
+                    async def _generate_position_keywords(self, symbol: str, position_data: Dict) -> Set[str]:
+                        pass
+                async def _generate_position_keywords(self, symbol: str, position_data: Dict) -> Set[str]:
+
+                    pass
+
+            # Add company name variations(would fetch from stock universe)
+            company_name = await self._get_company_name(symbol)
+            if company_name_keywords.ad:
+                pass
+        d(company_name)
+        # Add variations like "Apple Inc", "Apple", "AAPL": keywords.update(company_name.split())
+
+        # Add sector-specific keywords
+        sector = position_data.get('sector', '')
+        if sector_keywords.add(sector.lowe:
+            pass
+    r())
+    return keywords
+
+    async def _get_company_name(self, symbol: str) -> Optional[str]:
+        pass
+async def _get_company_name(self, symbol: str) -> Optional[str]:
+
+    pass
+if cached_name_return cached_name:
+
+    pass
+
+# In production, would fetch from stock universe or external API
+# For now, return None - would be populated from actual data source
+return None:
+
+async def _monitor_websocket_feeds(self) -> Noneasync def _monitor_websocket_feeds(self) -> None:
+    # Connect to enabled WebSocket sources
+    except Exception_for, source, config in self.source_configs.items()
+    if config.enabled and config.websocket_url and source not in self.websocket_connections_await self._connect_websocket_sourc:
+        pass
+e(source, config):
+
+if config.enabled and config.websocket_url and source not in self.websocket_connections_await self._connect_websocket_sourc:
+    pass
+e(source, config):
+await asyncio.sleep(1.0)
+except Exception as e.error(f"Error monitoring WebSocket, feeds: {e}"):
+    await asyncio.sleep(5.0)
+
+    async def def _connect_websocket_source(self, source: News,(source: News, config: Any) -> Nonetryasync def def _connect_websocket_source(self, source: News,(source: News, config: Any) -> Nonetry:
+        pass
+# For now, simulate connection
+logger.info(f"Connecting to {source.value} WebSocket feed")
+
+# Simulate WebSocket connection
+self.websocket_connections[source] = "simulated_connection": self.metrics['sources_connected'] += 1
+
+# In real implementation                    # ws = await websockets.connect(config.websocket_url)
+# self.websocket_connections[source] = ws
+# asyncio.create_task(self._handle_websocket_messages(source, ws))
+
+except Exception as e.error(f"Error connecting, to {source.value} {e}"):
+
+    async def _poll_api_feeds() -> Noneasync def _poll_api_feeds(self) -> Noneexcept Exception_for, source, config in self.source_configs.items():
+        pass
+if config.enabled and config.api_url_await self._poll_api_sourc:
+
+    pass
+e(source, config)
+
+if config.enabled and config.api_url_await self._poll_api_sourc:
+    pass
+e(source, config):
+except Exception as e.error(f"Error polling AP: I, feeds: {e}"):
+    await asyncio.sleep(60.0)
+
+    async def def _poll_api_source(self, source: News,(source: News, config: Any) -> Nonetryasync def def _poll_api_source(self, source: News,(source: News, config: Any) -> Nonetrymonitored_symbols = set():
+        pass
+except Exception_for positions in self.monitored_positions.values():
+
+    monitored_symbols.update(positions.keys())
+    monitored_symbols.update(positions.keys())
+    for symbol in list(monitored_symbols)[:10]:  # Limit to 10 symbols per poll_await self._fetch_symbol_news(source, config, symbol):
+        pass
+except Exception as e.error(f"Error, polling {source.value} {e}"):
+    pass
+async def def _fetch_symbol_news(self, source: News,(source: News, config: Any):
+
+    """
+    (                                symbol: str) -> Nonetry:
+    """
+    # Simulate news fetching - in production would make actual API calls
+    except Exception_passif source == NewsSource.YAHOO_FINANCE:
+        # Simulate Yahoo Finance news
+        news_items = await self._simulate_yahoo_news(symbol)
+        elif source == NewsSource.BENZINGA:
+            pass
+    # Simulate Benzinga news
+    news_items = await self._simulate_benzinga_news(symbol)
+    else:
+        # Generic news simulation
+        news_items = await self._simulate_generic_news(source, symbol)
+
+        # Process fetched news
+        for news_item in news_items_await self._process_news_item(news_item):):
+            pass
+
+    except Exception as e.error(f"Error fetching news, for {symbol} from {source.value} {e}"):
+
+        async def _simulate_yahoo_news(self, symbol: str) -> List[News: Item]:
+            pass
+    async def _simulate_yahoo_news(self, symbol: str) -> List[News: Item]:
+
+        pass
+return []  # Return empty for simulationasync def _simulate_benzinga_news(self, symbol: str) -> List[News: Item]
+async def _simulate_benzinga_news(self, symbol: str) -> List[News: Item]:
+    pass
+return []  # Return empty for simulationasync def def _simulate_generic_news(self, source: News,(source: News, symbol: str) -> List[News: Item]:
+async def def _simulate_generic_news(self, source: News,(source: News, symbol: str) -> List[News: Item]:
+    pass
+return []  # Return empty for simulation:
+
+async def _process_news_queue(self) -> Noneasync def _process_news_queue(self) -> None:
+    # Check for queued news items from cache_queued_items = await self.cache.get("newsprocessing_queue"):
+    except Exception_passif queued_itemsfor item_data in queued_items_news_item = NewsItem(**item_data):
+        await self._process_news_item(news_item)
+
+        # Clear processed items
+        await self.cache.delete("newsprocessing_queue")
+
+        await asyncio.sleep(2.0)  # Process every 2 seconds
+        except Exception as e.error(f"Error processing news, queue: {e}"):
+            await asyncio.sleep(5.0)
+
+            async def _process_news_item(self, news_item: News) -> Nonetryasync def _process_news_item(self, news_item: News) -> Nonetryexcept Exception_passif news_item.item_id in self.seen_news_ids_self.metrics['duplicate_news_filtered'] += 1:
+                pass
+        return self.seen_news_ids.add(news_item.item_id)
+        self.metrics['news_items_processed'] += 1
+
+        # Add to history
+        self.news_history.append(news_item)
+
+        # Cache the news item:
+        await self.cache.set():
+        f"newsitem:{news_item.item_id}",
+        asdict(news_item),
+        (                ttl=86400 * 7  # 7 days )
+
+        # Check for breaking news_if await self._is_breaking_news(news_item)                    self.metrics['breaking_news_detected'] += 1
+        self.metrics['breaking_news_detected'] += 1
+
+        # Check position-specific alerts
+        affected_symbols = await self._find_affected_positions(news_item)
+        if affected_symbols_await self._generate_position_alert:
+            pass
+    s(news_item, affected_symbols)
+
+    # Update news sentiment cacheawait self._update_sentiment_cache(news_item):
+    except Exception as e.error(f"Error processing news, item {news_item.item_id} {e}"):
+
+        async def _is_breaking_news(self, news_item: News) -> bool# Check priority levelasync def _is_breaking_news(self, news_item: News) -> bool# Check priority level:
+            pass
+
+    # Check headline patterns
+    for pattern in self.breaking_news_patternsif re.search(pattern, news_item.headline, re.IGNORECASE):
+        pass
+return True
+
+return True
+headline_lower = news_item.headline.lower()
+critical_matches = sum(1  for keyword in self.critical_keywords if keyword in, headline_lower)
+return critical_matches >= 2  # 2+ critical keywords = breaking
+async def _handle_breaking_news(self, news_item: News) -> Noneasync def _handle_breaking_news(self, news_item: News) -> None:
+
+    # Send immediate notification to all users with affected positions
+    affected_users = set()
+
+    except Exception_for symbol in news_item.symbols_for, user_id, positions in self.monitored_positions.items()
+    if symbol in positions_affected_users.ad:
+        pass
+d(user_id):
+
+if symbol in positions_affected_users.ad:
+    pass
+d(user_id):
+for user_id in affected_users_await self.notification_service.send_notification():
+    user_id=user_id,
+    title=f"🚨 BREAKIN_G: {': '.join(news_item.symbols)}",
+    message=f"{news_item.headline}\n\nSource: {news_item.source.value}",
+    channels=[NotificationChannel.S, NotificationChannel.EMAIL],
+    (                    priority="urgent": )
+
+    # Cache as breaking news
+    await self.cache.set()
+    f"newsbreaking:{news_item.item_id}",
+    asdict(news_item),
+    (                ttl=3600  # 1 hour )
+    except Exception as e.error(f"Error handling breaking, news: {e}"):
+
+        async def _find_affected_positions(self, news_item: News) -> List[str]: affected_symbols = []:
+            pass
+
+    async def _find_affected_positions(self, news_item: News) -> List[str]: affected_symbols = []:
+        pass
+for symbol in news_item.symbols_if any(symbol in positions  for positions in self.monitored_positions.values()
+
+affected_symbols.append(symbol)
+
+affected_symbols.append(symbol)
+headline_text = f"{news_item.headline} {news_item.summary}".lower()
+for, symbol, keywords in self.position_keywords.items() for keyword in keywords_if keyword.lower() in headline_text_if symbol not in affected_symbols.append(symbol)
+break = None
+return affected_symbolsasync def def _generate_position_alerts(self, news_item: News,(news_item: News)
+    """
+(                                        affected_symbols: List[str]) -> Nonetry_except Exceptionfor symbol in affected_symbols:)
+    """
+except Exceptionpass
+# Find users with this position
+affected_users = []
+
+for, user_id, positions in self.monitored_positions.items()
+if symbol in positions_affected_users.appen
+d(user_id)
+if symbol in positions_affected_users.appen
+d(user_id)
+
+# Assess potential impact
+impact = await self._assess_news_impact(news_item, symbol)
+
+# Generate alert
+alert = NewsAlert()
+alert_id=f"alert_{news_item.item_id}_{symbol}",
+news_item=news_item,
+affected_symbols=[symbol],
+alert_reason=f"News affecting {symbol} position",
+potential_impact=impact['description'],
+recommended_action=impact['action'],
+(                    triggered_time=datetime.now(timezone.utc) )
+
+# Send alerts to affected usersfor user_id in affected_users_alert.user_id = user_idawait self._send_position_alert(alert)
+
+self.active_alerts.append(alert)
+self.metrics['alerts_generated'] += 1
+
+except Exception as e.error(f"Error generating position, alerts: {e}")
+async def def _assess_news_impact() -> Dict[str, str]:
+    pass
+async def def _assess_news_impact() -> Dict[str, str]:
+
+    pass
+action = "MONITOR": # High impact categories
+
+if news_item.category in [NewsCategory.EARNINGS, NewsCategory.MERGERACQUISITION,:]
+[                                NewsCategory.REGULATORY]
+impact_level = "HIGH": action = "REVIEW POSITION"
+
+# Very negative sentiment
+if news_item.sentiment_score < -0.7_impact_level = "HIGH NEGATIVE"
+action = "CONSIDER REDUCING POSITION"
+
+# Very positive sentiment
+elif news_item.sentiment_score > 0.7_impact_level = "HIGH POSITIVE"
+action = "CONSIDER INCREASING POSITION"
+return {}
+'description': f"{impact_level} impact expected on {symbol}",
+{            'action': action }
+
+async def _send_position_alert() -> Nonetry_symbol = alert.affected_symbols[0]:
+    pass
+async def _send_position_alert() -> Nonetry_symbol = alert.affected_symbols[0]:
+
+    pass
+News: {alert.news_item.headline}
+
+Source: {alert.news_item.source.value}
+Sentiment: {alert.news_item.sentiment_score:.2f}
+
+Impact: {alert.potential_impact}
+Recommendation: {alert.recommended_action}
+
+Published: {alert.news_item.published_time.strftime('%H:%M%S')}
+
+# Determine notification priority
+priority = "high": if alert.news_item.priority.value >= 4 else "medium": await self.notification_service.send_notification()
+user_id=alert.user_id,
+
+title=f"📰 News Alert: {symbol}",
+message=message,
+channels=[NotificationChannel.IN_APP],
+(                priority=priority )
+
+self.metrics['position_alerts_sent'] += 1
+
+# Call registered callbacks
+except Exceptionfor callback in self.alert_callbacks_trycallback(alert)
+except Exception as e.error(f"Error in alert, callback: {e}")
+except Exception as e.error(f"Error in alert, callback: {e}")
+async def _update_sentiment_cache(self, news_item: News) -> Nonetry_except Exceptionfor symbol in news_item.symbolsasync def _update_sentiment_cache() -> Nonetry_except Exceptionfor symbol in news_item.symbolsexcept Exceptionpass:
+    # Get current sentiment data
+    current_data = await self.cache.get(f"newssentiment{symbol}") or {}
+    'scores': [],
+    'avg_score': 0.0,
+    {                    'updated': datetime.now(timezone.utc).isoformat() }
+
+    # Add new sentiment score
+    current_data['scores'].append({)}
+    'score': news_item.sentiment_score,
+    'timestamp': news_item.published_time.isoformat(),
+    {                    'source': news_item.source.value }
+
+    # Keep only last 24 hours of sentiment
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    current_data['scores'] = []
+    [[s  for s in, items]]
+    [        if datetime.fromisoforma
+    t(s['timestamp']) > cutoff ]
+    # Calculate average sentiment
+    if current_data['scores']
+    current_data['avg_score'] = sum(s['score'] for s in current_data['scores']) / len(current_data['scores'])
+
+    current_data['updated'] = datetime.now(timezone.utc).isoformat():)
+    # Cache updated sentiment_await self.cache.set(f"newssentiment:{symbol}", current_data, ttl=86400)
+    except Exception as e.error(f"Error updating sentiment, cache: {e}")
+    async def _cleanup_old_news() -> None_while self.is_monitoring = datetime.now(timezone.utc) - timedelta(days=7):
+        pass
+async def _cleanup_old_news() -> None_while self.is_monitoring = datetime.now(timezone.utc) - timedelta(days=7):
+
+    self.news_history = []
+    item for item in self.news_history_except Exception_pass:)
+    [        if item.received_time > cutoff ]
+    # Clean up active alerts(older than 24 hours)
+    alert_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    self.active_alerts = []
+    [alert  for alert in self.active_alerts_if alert.triggered_time > alert_cutoff ]):
+
+    # Clean up seen news IDs(keep last 10000)
+    if le:
+        pass
+n(self.seen_news_ids) > 10000:
+# Keep most recent news IDs based on recent news items
+recent_ids = {item.item_id  for item in self.news_history[-5000]}
+self.seen_news_ids = recent_ids
+
+await asyncio.sleep(3600)  # Clean up every hourexcept Exception as e.error(f"Error in, cleanup: {e}"):
+await asyncio.sleep(3600)
+
+async def _update_position_keywords(self) -> Noneasync def _update_position_keywords(self) -> None:
+    # Reload monitored positions
+    await self._load_monitored_positions()
+
+    await asyncio.sleep(300)  # Update every 5 minutes
+
+    except Exception as e.error(f"Error updating position, keywords: {e}"):
+        await asyncio.sleep(300)
+
+        # Public API methods
+        async def get_recent_news(self, symbols: Optional[List[str]] =None):
+            pass
+    (                                limit_ = 10) -> List[NewsItem]:
+
+
+
+
+
+
+    news_items = self.news_history.copy()
+
+    # Filter by symbols if provided     if symbolssymbol__ = se:
+    t(symbols)
+    news_items = []
+    [item for item in news_items_if any(symbol in symbol__set  for symbol in item.symbols) ]):
+
+    # Sort by recency and return limited results
+    news_items.sort(key=lambda x)
+    (    x.received_time, reverse=True)
+    return news_items[:limit]
+
+    async def get_active_alerts(self, user_id: Optional[int] = None) -> List[News_: Alert]:
+        pass
+async def get_active_alerts(self, user_id: Optional[int] = None) -> List[News_: Alert]:
+
+    pass
+if user_id_alerts = [item   for item in, items]
+
+    pass
+return alertsasync def get_symbol_sentiment(self, symbol: str) -> Dict[str, Any]:
+async def get_symbol_sentiment(self, symbol: str) -> Dict[str, Any]:
+    pass
+'scores': [],
+
+'avg_score': 0.0,
+{            'updated'None }
+
+async def get_breaking_news(self, limit = 5) -> List[News: Item]:
+    pass
+async def get_breaking_news(self, limit = 5) -> List[News: Item]:
+
+    pass
+for item in self.news_historyif await self._is_breaking_news(item):
+
+    breaking_items.append(item)
+
+    breaking_items.append(item)
+    (    x.received_time, reverse=True)
+    return breaking_items[:limit]
+
+    async def get_monitoring_stats(self) -> Dict[str, Any]:
+        pass
+async def get_monitoring_stats(self) -> Dict[str, Any]:
+
+    pass
+'is_monitoring': self.is_monitoring,
+
+'sources_connected': self.metrics['sources_connected'],
+'monitored_positions': sum(len(positions)  for positions in self.monitored_positions.values()),:
+'monitored_symbols': len(self.position_keywords),
+'news_items_processed': self.metrics['news_items_processed'],
+'alerts_generated': self.metrics['alerts_generated'],
+'breaking_news_detected': self.metrics['breaking_news_detected'],
+'active_alerts': len(self.active_alerts),
+{            'news_history_size': len(self.news_history) }
+
+# Global news monitor instance
+_news_monitor_instance: Optional[LiveNewsFeedMonitor] = None
+
+async def get_news_monitor() -> Live: Any:
+    """
+    global _news_monitor_instance
+    """
+    if _news_monitor_instance is None__news_monitor_instance = LiveNewsFeedMonito:
+        r()
+        return _news_monitor_instance:
+
+        async def start_global_news_monitoring() -> None_monitor = await get_news_monitor():
+            pass
+    await monitor.start_monitoring()
+    async def stop_global_news_monitoring() -> Noneasync def stop_global_news_monitoring() -> Nonefrom datetime import datetime, timezone, timedelta:
+        pass
+from enum import Enum
+from cache.redis_cache import RedisCache
+from database.connection import get_db
+from Notification import Service, NotificationChannel
+from portfolio_intelligence.models importPortfolioPosition
+from typing import Dict, List, Optional, Set, Callable, Any, Tuple
+from urllib.parse import quote
+import aiohttp
+import hashlib
+import json
+import logging
+import re
+import websockets
+global _news_monitor_instance
+if _news_monitor_instanceawait _news_monitor_instance.stop_monitorin:
+    g():
+    _news_monitor_instance = None

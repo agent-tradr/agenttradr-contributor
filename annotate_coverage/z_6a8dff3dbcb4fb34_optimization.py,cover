@@ -1,0 +1,908 @@
+> """Parameter Optimization and Walk-Forward Analysis - RC-017"""
+  
+> from collections import Counter
+> from concurrent.futures import ProcessPoolExecutor
+> from dataclasses import dataclass
+> from scipy import optimize
+> from typing import List, Dict, Optional, Any, Callable
+> import itertools
+> import numpy as np
+> import pandas as pd
+  
+> try:
+>     from skopt import gp_minimize
+!     from skopt.space import Real, Categorical
+!     from skopt.utils import use_named_args
+!     SKOPT_AVAILABLE = True
+> except ImportError:
+>     SKOPT_AVAILABLE = False
+  
+  
+> @dataclass
+> class OptimizationConfig:
+>     """Configuration for parameter optimization"""
+      
+>     method: str = "grid"  # grid, random, bayesian, genetic
+>     metric: str = "sharpe_ratio"  # sharpe_ratio, total_return, calmar_ratio, etc.
+>     n_trials: int = 100  # For random/bayesian
+>     n_jobs: int = 4  # Parallel workers
+>     cross_validation: bool = True
+>     cv_splits: int = 5
+>     early_stopping: bool = True
+>     tolerance: float = 0.001
+>     max_iterations: int = 1000
+  
+  
+> @dataclass
+> class WalkForwardConfig:
+>     """Configuration for walk-forward analysis"""
+      
+>     in_sample_periods: int = 252  # Training period (days)
+>     out_sample_periods: int = 63  # Testing period (days)
+>     step_size: int = 21  # Step forward (days)
+>     anchored: bool = False  # Whether to anchor start date
+>     optimization_metric: str = "sharpe_ratio"
+>     min_samples: int = 100  # Minimum samples for optimization
+  
+  
+> class ParameterOptimizer:
+>     """Advanced parameter optimization for trading strategies"""
+      
+>     def __init__(self):
+!         self.optimization_history = []
+!         self.best_params = None
+!         self.best_score = -float("inf")
+      
+>     def optimize(
+>         self,
+>         objective_function: Callable,
+>         param_space: Dict[str, Any],
+>         config: OptimizationConfig,
+>         constraints: Optional[List[Dict]] = None) -> Dict[str, Any]:
+>         """
+>         Main optimization method supporting multiple algorithms
+          
+>         Args:
+>             objective_function: Function to optimize (returns score to maximize)
+>             param_space: Parameter search space
+>             config: Optimization configuration
+>             constraints: Optional constraints on parameters
+>         """
+          
+!         print(f"Starting {config.method} optimization...")
+          
+!         if config.method == "grid":
+!             return self._grid_search(objective_function, param_space, config)
+!         elif config.method == "random":
+!             return self._random_search(objective_function, param_space, config)
+!         elif config.method == "bayesian":
+!             return self._bayesian_optimization(objective_function, param_space, config)
+!         elif config.method == "genetic":
+!             return self._genetic_algorithm(objective_function, param_space, config)
+!         elif config.method == "differential_evolution":
+!             return self._differential_evolution(objective_function, param_space, config)
+!         else:
+!             raise ValueError(f"Unknown optimization method: {config.method}")
+      
+>     def _grid_search(
+>         self,
+>         objective_function: Callable,
+>         param_space: Dict[str, List[Any]],
+>         config: OptimizationConfig) -> Dict[str, Any]:
+>         """Exhaustive grid search optimization"""
+          
+          # Generate all parameter combinations
+!         param_names = list(param_space.keys())
+!         param_values = list(param_space.values())
+!         param_combinations = list(itertools.product(*param_values))
+          
+!         print(f"Testing {len(param_combinations)} parameter combinations...")
+          
+!         results = []
+          
+          # Parallel evaluation
+!         with ProcessPoolExecutor(max_workers=config.n_jobs) as executor:
+!             futures = []
+              
+!             for combination in param_combinations:
+!                 params = dict(zip(param_names, combination))
+!                 future = executor.submit(objective_function, params)
+!                 futures.append((params, future))
+              
+              # Collect results
+!             for params, future in futures:
+!                 try:
+!                     score = future.result(timeout=60)
+!                     results.append({"params": params, "score": score})
+                      
+                      # Track best
+!                     if score > self.best_score:
+!                         self.best_score = score
+!                         self.best_params = params
+                      
+                      # Early stopping
+!                     if config.early_stopping and len(results) > 50:
+!                         recent_scores = [r["score"] for r in results[-50:]]
+!                         if np.std(recent_scores) < config.tolerance:
+!                             print("Early stopping triggered - convergence detected")
+!                             break
+                              
+!                 except Exception as e:
+!                     print(f"Failed to evaluate params {params}: {str(e)}")
+          
+          # Analyze results
+!         analysis = self._analyze_optimization_results(results, param_space)
+          
+!         return {
+!             "best_params": self.best_params,
+!             "best_score": self.best_score,
+!             "all_results": results,
+!             "analysis": analysis,
+!             "method": "grid_search",
+!             "combinations_tested": len(results)
+!         }
+      
+>     def _random_search(
+>         self,
+>         objective_function: Callable,
+>         param_space: Dict[str, Any],
+>         config: OptimizationConfig) -> Dict[str, Any]:
+>         """Random search optimization"""
+          
+!         results = []
+          
+!         for trial in range(config.n_trials):
+              # Sample random parameters
+!             params = self._sample_random_params(param_space)
+              
+!             try:
+!                 score = objective_function(params)
+!                 results.append({"params": params, "score": score, "trial": trial})
+                  
+!                 if score > self.best_score:
+!                     self.best_score = score
+!                     self.best_params = params
+!                     print(f"Trial {trial}: New best score = {score:.4f}")
+                      
+!             except Exception as e:
+!                 print(f"Trial {trial} failed: {str(e)}")
+          
+!         analysis = self._analyze_optimization_results(results, param_space)
+          
+!         return {
+!             "best_params": self.best_params,
+!             "best_score": self.best_score,
+!             "all_results": results,
+!             "analysis": analysis,
+!             "method": "random_search",
+!             "trials": config.n_trials
+!         }
+      
+>     def _bayesian_optimization(
+>         self,
+>         objective_function: Callable,
+>         param_space: Dict[str, Any],
+>         config: OptimizationConfig) -> Dict[str, Any]:
+>         """Bayesian optimization using Gaussian Processes"""
+          
+!         if not SKOPT_AVAILABLE:
+!             print("scikit-optimize not installed, falling back to random search")
+!             return self._random_search(objective_function, param_space, config)
+          
+          # Convert param_space to skopt format
+!         dimensions = []
+!         param_names = []
+          
+!         for name, space in param_space.items():
+!             param_names.append(name)
+              
+!             if isinstance(space, tuple) and len(space) == 2:
+                  # Continuous parameter
+!                 dimensions.append(Real(space[0], space[1], name=name))
+!             elif isinstance(space, list):
+!                 if all(isinstance(x, (int, float)) for x in space):
+                      # Discrete numeric parameter
+!                     dimensions.append(Categorical(space, name=name))
+!                 else:
+                      # Categorical parameter
+!                     dimensions.append(Categorical(space, name=name))
+          
+          # Wrapper for objective function (skopt minimizes, so negate score)
+!         @use_named_args(dimensions=dimensions)
+!         def objective(**params):
+!             try:
+!                 score = objective_function(params)
+!                 return -score  # Negate because skopt minimizes
+!             except Exception as e:
+!                 print(f"Evaluation failed: {str(e)}")
+!                 return 1e10  # Large penalty for failed evaluations
+          
+          # Run Bayesian optimization
+!         result = gp_minimize(
+!             func=objective,
+!             dimensions=dimensions,
+!             n_calls=config.n_trials,
+!             n_initial_points=min(10, config.n_trials // 4),
+!             acq_func="EI",  # Expected Improvement
+!             n_jobs=config.n_jobs,
+!             random_state=42
+!         )
+          
+          # Extract best parameters
+!         best_params = dict(zip(param_names, result.x))
+!         best_score = -result.fun  # Un-negate the score
+          
+          # Convert results
+!         results = []
+!         for i, (params_vals, score) in enumerate(zip(result.x_iters, result.func_vals)):
+!             params = dict(zip(param_names, params_vals))
+!             results.append({
+!                 "params": params,
+!                 "score": -score,  # Un-negate
+!                 "iteration": i
+!             })
+          
+!         return {
+!             "best_params": best_params,
+!             "best_score": best_score,
+!             "all_results": results,
+!             "convergence": result.func_vals,
+!             "method": "bayesian_optimization",
+!             "trials": config.n_trials
+!         }
+      
+>     def _genetic_algorithm(
+>         self,
+>         objective_function: Callable,
+>         param_space: Dict[str, Any],
+>         config: OptimizationConfig) -> Dict[str, Any]:
+>         """Genetic algorithm optimization"""
+          
+          # GA parameters
+!         population_size = 50
+!         n_generations = config.n_trials // population_size
+!         mutation_rate = 0.1
+!         crossover_rate = 0.8
+!         elite_size = 5
+          
+          # Initialize population
+!         population = [
+!             self._sample_random_params(param_space) for _ in range(population_size)
+!         ]
+          
+!         results = []
+!         generation_stats = []
+          
+!         for generation in range(n_generations):
+              # Evaluate fitness
+!             fitness_scores = []
+!             for individual in population:
+!                 try:
+!                     score = objective_function(individual)
+!                     fitness_scores.append(score)
+!                     results.append({
+!                         "params": individual,
+!                         "score": score,
+!                         "generation": generation
+!                     })
+!                 except Exception as e:
+!                     import logging
+!                     logging.error(f"Operation failed: {e}")
+!                     fitness_scores.append(-float("inf"))
+              
+              # Track best
+!             best_idx = np.argmax(fitness_scores)
+!             if fitness_scores[best_idx] > self.best_score:
+!                 self.best_score = fitness_scores[best_idx]
+!                 self.best_params = population[best_idx]
+              
+              # Generation statistics
+!             generation_stats.append({
+!                 "generation": generation,
+!                 "best_score": max(fitness_scores),
+!                 "avg_score": np.mean(
+!                     [s for s in fitness_scores if s > -float("inf")]
+!                 ),
+!                 "diversity": self._calculate_population_diversity(population)
+!             })
+              
+!             print(
+!                 f"Generation {generation}: Best = {max(fitness_scores):.4f}, "
+!                 f"Avg = {generation_stats[-1]['avg_score']:.4f}"
+!             )
+              
+              # Selection
+!             selected = self._tournament_selection(
+!                 population, fitness_scores, population_size
+!             )
+              
+              # Crossover and mutation
+!             new_population = selected[:elite_size]  # Keep elite
+              
+!             while len(new_population) < population_size:
+!                 if np.random.random() < crossover_rate and len(selected) >= 2:
+!                     parent1 = selected[np.random.randint(len(selected))]
+!                     parent2 = selected[np.random.randint(len(selected))]
+!                     child = self._crossover(parent1, parent2)
+!                 else:
+!                     child = selected[np.random.randint(len(selected))].copy()
+                  
+!                 if np.random.random() < mutation_rate:
+!                     child = self._mutate(child, param_space)
+                  
+!                 new_population.append(child)
+              
+!             population = new_population
+              
+              # Early stopping
+!             if config.early_stopping and generation > 10:
+!                 recent_best = [s["best_score"] for s in generation_stats[-10:]]
+!                 if np.std(recent_best) < config.tolerance:
+!                     print("Early stopping - population converged")
+!                     break
+          
+!         return {
+!             "best_params": self.best_params,
+!             "best_score": self.best_score,
+!             "all_results": results,
+!             "generation_stats": generation_stats,
+!             "method": "genetic_algorithm",
+!             "generations": generation + 1,
+!             "population_size": population_size
+!         }
+      
+>     def _differential_evolution(
+>         self,
+>         objective_function: Callable,
+>         param_space: Dict[str, Any],
+>         config: OptimizationConfig) -> Dict[str, Any]:
+>         """Differential evolution optimization"""
+          
+          # Convert param_space to bounds for scipy
+!         bounds = []
+!         param_names = []
+          
+!         for name, space in param_space.items():
+!             param_names.append(name)
+!             if isinstance(space, tuple):
+!                 bounds.append(space)
+!             elif isinstance(space, list):
+                  # For discrete values, use index-based optimization
+!                 bounds.append((0, len(space) - 1))
+          
+          # Wrapper function
+!         def objective_wrapper(x):
+!             params = {}
+!             for i, (name, space) in enumerate(param_space.items()):
+!                 if isinstance(space, list):
+                      # Convert index to actual value
+!                     idx = int(round(x[i]))
+!                     idx = max(0, min(idx, len(space) - 1))
+!                     params[name] = space[idx]
+!                 else:
+!                     params[name] = x[i]
+              
+!             try:
+!                 return -objective_function(params)  # Minimize negative score
+!             except Exception:
+                  # TODO: Log error properly
+!                 return 1e10
+          
+          # Run differential evolution
+!         result = optimize.differential_evolution(
+!             objective_wrapper,
+!             bounds,
+!             maxiter=config.max_iterations,
+!             popsize=15,
+!             tol=config.tolerance,
+!             workers=config.n_jobs,
+!             seed=42
+!         )
+          
+          # Convert result back
+!         best_params = {}
+!         for i, (name, space) in enumerate(param_space.items()):
+!             if isinstance(space, list):
+!                 idx = int(round(result.x[i]))
+!                 idx = max(0, min(idx, len(space) - 1))
+!                 best_params[name] = space[idx]
+!             else:
+!                 best_params[name] = result.x[i]
+          
+!         return {
+!             "best_params": best_params,
+!             "best_score": -result.fun,
+!             "iterations": result.nit,
+!             "function_calls": result.nfev,
+!             "success": result.success,
+!             "message": result.message,
+!             "method": "differential_evolution"
+!         }
+      
+      # Helper methods
+      
+>     def _sample_random_params(self, param_space: Dict[str, Any]) -> Dict[str, Any]:
+>         """Sample random parameters from space"""
+!         params = {}
+          
+!         for name, space in param_space.items():
+!             if isinstance(space, tuple):
+                  # Continuous parameter
+!                 if isinstance(space[0], int) and isinstance(space[1], int):
+!                     params[name] = np.random.randint(space[0], space[1] + 1)
+!                 else:
+!                     params[name] = np.random.uniform(space[0], space[1])
+!             elif isinstance(space, list):
+                  # Discrete parameter
+!                 params[name] = np.random.choice(space)
+!             else:
+!                 params[name] = space
+          
+!         return params
+      
+>     def _tournament_selection(
+>         self,
+>         population: List[Dict],
+>         fitness_scores: List[float],
+>         n_selected: int,
+>         tournament_size: int = 3) -> List[Dict]:
+>         """Tournament selection for genetic algorithm"""
+!         selected = []
+          
+!         for _ in range(n_selected):
+!             tournament_indices = np.random.choice(
+!                 len(population), tournament_size, replace=False
+!             )
+!             tournament_scores = [fitness_scores[i] for i in tournament_indices]
+!             winner_idx = tournament_indices[np.argmax(tournament_scores)]
+!             selected.append(population[winner_idx].copy())
+          
+!         return selected
+      
+>     def _crossover(
+>         self, parent1: Dict[str, Any], parent2: Dict[str, Any]) -> Dict[str, Any]:
+>         """Uniform crossover for genetic algorithm"""
+!         child = {}
+          
+!         for key in parent1.keys():
+!             if np.random.random() < 0.5:
+!                 child[key] = parent1[key]
+!             else:
+!                 child[key] = parent2[key]
+          
+!         return child
+      
+>     def _mutate(
+>         self,
+>         individual: Dict[str, Any],
+>         param_space: Dict[str, Any],
+>         mutation_strength: float = 0.1) -> Dict[str, Any]:
+>         """Mutation for genetic algorithm"""
+!         mutated = individual.copy()
+          
+!         for name, space in param_space.items():
+!             if np.random.random() < mutation_strength:
+!                 if isinstance(space, tuple):
+                      # Continuous - add Gaussian noise
+!                     noise = np.random.normal(0, (space[1] - space[0]) * 0.1)
+!                     mutated[name] = np.clip(
+!                         individual[name] + noise, space[0], space[1]
+!                     )
+!                 elif isinstance(space, list):
+                      # Discrete - random choice
+!                     mutated[name] = np.random.choice(space)
+          
+!         return mutated
+      
+>     def _calculate_population_diversity(
+>         self, population: List[Dict[str, Any]]) -> float:
+>         """Calculate diversity of population for GA"""
+!         if len(population) < 2:
+!             return 0
+          
+          # Calculate average pairwise distance
+!         distances = []
+!         for i in range(len(population)):
+!             for j in range(i + 1, len(population)):
+!                 dist = self._parameter_distance(population[i], population[j])
+!                 distances.append(dist)
+          
+!         return np.mean(distances) if distances else 0
+      
+>     def _parameter_distance(
+>         self, params1: Dict[str, Any], params2: Dict[str, Any]) -> float:
+>         """Calculate distance between two parameter sets"""
+!         distance = 0
+!         n_params = 0
+          
+!         for key in params1.keys():
+!             if key in params2:
+!                 n_params += 1
+                  
+!                 val1, val2 = params1[key], params2[key]
+                  
+!                 if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                      # Numeric distance
+!                     distance += abs(val1 - val2)
+!                 elif val1 != val2:
+                      # Categorical difference
+!                     distance += 1
+          
+!         return distance / n_params if n_params > 0 else 0
+      
+>     def _analyze_optimization_results(
+>         self, results: List[Dict[str, Any]], param_space: Dict[str, Any]) -> Dict[str, Any]:
+>         """Analyze optimization results"""
+          
+!         if not results:
+!             return {}
+          
+!         scores = [r["score"] for r in results]
+          
+          # Parameter sensitivity analysis
+!         param_sensitivity = {}
+!         for param_name in param_space.keys():
+!             param_values = [r["params"][param_name] for r in results]
+              
+              # Calculate correlation with score
+!             if all(isinstance(v, (int, float)) for v in param_values):
+!                 correlation = np.corrcoef(param_values, scores)[0, 1]
+!                 param_sensitivity[param_name] = {
+!                     "correlation": correlation,
+!                     "importance": abs(correlation)
+!                 }
+          
+          # Find stable regions
+!         stable_regions = self._find_stable_regions(results, param_space)
+          
+!         return {
+!             "score_statistics": {
+!                 "mean": np.mean(scores),
+!                 "std": np.std(scores),
+!                 "min": np.min(scores),
+!                 "max": np.max(scores),
+!                 "percentiles": {
+!                     "25%": np.percentile(scores, 25),
+!                     "50%": np.percentile(scores, 50),
+!                     "75%": np.percentile(scores, 75),
+!                     "95%": np.percentile(scores, 95)
+!                 }
+!             },
+!             "parameter_sensitivity": param_sensitivity,
+!             "stable_regions": stable_regions,
+!             "convergence_rate": self._calculate_convergence_rate(scores)
+!         }
+      
+>     def _find_stable_regions(
+>         self, results: List[Dict[str, Any]], param_space: Dict[str, Any]) -> Dict[str, Any]:
+>         """Find regions of parameter space with stable performance"""
+          
+          # Group results by score percentiles
+!         scores = [r["score"] for r in results]
+!         top_percentile = np.percentile(scores, 90)
+          
+!         top_results = [r for r in results if r["score"] >= top_percentile]
+          
+!         if not top_results:
+!             return {}
+          
+!         stable_regions = {}
+          
+!         for param_name in param_space.keys():
+!             values = [r["params"][param_name] for r in top_results]
+              
+!             if all(isinstance(v, (int, float)) for v in values):
+!                 stable_regions[param_name] = {
+!                     "range": (min(values), max(values)),
+!                     "mean": np.mean(values),
+!                     "std": np.std(values)
+!                 }
+!             else:
+                  # Categorical - find mode
+!                 mode = Counter(values).most_common(1)[0][0]
+!                 stable_regions[param_name] = {
+!                     "mode": mode,
+!                     "frequency": values.count(mode) / len(values)
+!                 }
+          
+!         return stable_regions
+      
+>     def _calculate_convergence_rate(self, scores: List[float]) -> float:
+>         """Calculate convergence rate of optimization"""
+          
+!         if len(scores) < 10:
+!             return 0
+          
+          # Calculate moving average
+!         window = min(10, len(scores) // 4)
+!         moving_avg = pd.Series(scores).rolling(window).mean().dropna()
+          
+!         if len(moving_avg) < 2:
+!             return 0
+          
+          # Calculate rate of improvement
+!         improvements = np.diff(moving_avg)
+!         convergence_rate = (
+!             np.mean(improvements[-10:]) if len(improvements) > 10
+!             else np.mean(improvements)
+!         )
+          
+!         return convergence_rate
+  
+  
+> class WalkForwardAnalyzer:
+>     """Walk-forward analysis for robust strategy validation"""
+      
+>     def __init__(self):
+>         self.analysis_results = []
+      
+>     def analyze(
+>         self,
+>         data: pd.DataFrame,
+>         strategy_function: Callable,
+>         optimizer: ParameterOptimizer,
+>         config: WalkForwardConfig) -> Dict[str, Any]:
+>         """
+>         Perform walk-forward analysis
+          
+>         Args:
+>             data: Historical market data
+>             strategy_function: Strategy to test (takes params and data)
+>             optimizer: Parameter optimizer instance
+>             config: Walk-forward configuration
+>         """
+          
+!         windows = self._create_windows(data, config)
+!         print(f"Created {len(windows)} walk-forward windows")
+          
+!         results = []
+!         parameter_evolution = []
+          
+!         for i, window in enumerate(windows):
+!             print(f"\nWindow {i + 1}/{len(windows)}")
+              
+              # Split data
+!             in_sample_data = data.iloc[
+!                 window["in_sample_start"] : window["in_sample_end"]
+!             ]
+!             out_sample_data = data.iloc[
+!                 window["out_sample_start"] : window["out_sample_end"]
+!             ]
+              
+              # Optimize on in-sample
+!             def objective(params):
+!                 return strategy_function(params, in_sample_data)
+              
+!             opt_result = optimizer.optimize(
+!                 objective,
+!                 self._get_default_param_space(),
+!                 OptimizationConfig(method="grid", metric=config.optimization_metric)
+!             )
+              
+              # Test on out-of-sample
+!             out_sample_score = strategy_function(
+!                 opt_result["best_params"], out_sample_data
+!             )
+              
+              # Record results
+!             result = {
+!                 "window": i,
+!                 "in_sample_period": (
+!                     window["in_sample_start"],
+!                     window["in_sample_end"]
+!                 ),
+!                 "out_sample_period": (
+!                     window["out_sample_start"],
+!                     window["out_sample_end"]
+!                 ),
+!                 "optimal_params": opt_result["best_params"],
+!                 "in_sample_score": opt_result["best_score"],
+!                 "out_sample_score": out_sample_score,
+!                 "efficiency_ratio": out_sample_score / opt_result["best_score"]
+!                 if opt_result["best_score"] != 0
+!                 else 0
+!             }
+              
+!             results.append(result)
+!             parameter_evolution.append(opt_result["best_params"])
+          
+          # Analyze walk-forward results
+!         analysis = self._analyze_results(results, parameter_evolution)
+          
+!         return {
+!             "windows": len(windows),
+!             "results": results,
+!             "analysis": analysis,
+!             "parameter_evolution": parameter_evolution,
+!             "config": config
+!         }
+      
+>     def _create_windows(
+>         self, data: pd.DataFrame, config: WalkForwardConfig) -> List[Dict[str, int]]:
+>         """Create walk-forward windows"""
+          
+!         windows = []
+!         data_length = len(data)
+          
+!         if config.anchored:
+              # Anchored walk-forward (expanding window)
+!             in_sample_start = 0
+              
+!             for out_sample_start in range(
+!                 config.in_sample_periods,
+!                 data_length - config.out_sample_periods,
+!                 config.step_size
+!             ):
+!                 windows.append({
+!                     "in_sample_start": in_sample_start,
+!                     "in_sample_end": out_sample_start,
+!                     "out_sample_start": out_sample_start,
+!                     "out_sample_end": min(
+!                         out_sample_start + config.out_sample_periods, data_length
+!                     )
+!                 })
+!         else:
+              # Rolling walk-forward (fixed window)
+!             for start_idx in range(
+!                 0,
+!                 data_length - config.in_sample_periods - config.out_sample_periods,
+!                 config.step_size
+!             ):
+!                 windows.append({
+!                     "in_sample_start": start_idx,
+!                     "in_sample_end": start_idx + config.in_sample_periods,
+!                     "out_sample_start": start_idx + config.in_sample_periods,
+!                     "out_sample_end": start_idx + config.in_sample_periods + config.out_sample_periods
+!                 })
+          
+!         return windows
+      
+>     def _analyze_results(
+>         self, results: List[Dict[str, Any]], parameter_evolution: List[Dict[str, Any]]) -> Dict[str, Any]:
+>         """Analyze walk-forward results"""
+          
+          # Extract scores
+!         in_sample_scores = [r["in_sample_score"] for r in results]
+!         out_sample_scores = [r["out_sample_score"] for r in results]
+!         efficiency_ratios = [r["efficiency_ratio"] for r in results]
+          
+          # Parameter stability
+!         param_stability = self._analyze_parameter_stability(parameter_evolution)
+          
+          # Performance consistency
+!         consistency = self._analyze_performance_consistency(results)
+          
+!         return {
+!             "performance": {
+!                 "in_sample": {
+!                     "mean": np.mean(in_sample_scores),
+!                     "std": np.std(in_sample_scores),
+!                     "min": np.min(in_sample_scores),
+!                     "max": np.max(in_sample_scores)
+!                 },
+!                 "out_sample": {
+!                     "mean": np.mean(out_sample_scores),
+!                     "std": np.std(out_sample_scores),
+!                     "min": np.min(out_sample_scores),
+!                     "max": np.max(out_sample_scores)
+!                 },
+!                 "efficiency": {
+!                     "mean": np.mean(efficiency_ratios),
+!                     "std": np.std(efficiency_ratios),
+!                     "min": np.min(efficiency_ratios),
+!                     "max": np.max(efficiency_ratios)
+!                 }
+!             },
+!             "overfitting_degree": 1 - np.mean(efficiency_ratios),
+!             "parameter_stability": param_stability,
+!             "performance_consistency": consistency,
+!             "robustness_score": self._calculate_robustness_score(results)
+!         }
+      
+>     def _analyze_parameter_stability(
+>         self, parameter_evolution: List[Dict[str, Any]]) -> Dict[str, Any]:
+>         """Analyze how stable parameters are across windows"""
+          
+>         if not parameter_evolution:
+>             return {}
+          
+>         stability = {}
+          
+          # Get all parameter names
+>         param_names = list(parameter_evolution[0].keys())
+          
+>         for param_name in param_names:
+>             values = [p[param_name] for p in parameter_evolution]
+              
+>             if all(isinstance(v, (int, float)) for v in values):
+>                 stability[param_name] = {
+>                     "mean": np.mean(values),
+>                     "std": np.std(values),
+>                     "cv": np.std(values) / np.mean(values)
+>                     if np.mean(values) != 0
+>                     else float("inf"),
+>                     "trend": self._calculate_trend(values)
+>                 }
+>             else:
+                  # Categorical parameter
+>                 value_counts = Counter(values)
+>                 most_common = value_counts.most_common(1)[0]
+>                 stability[param_name] = {
+>                     "mode": most_common[0],
+>                     "stability": most_common[1] / len(values),
+>                     "unique_values": len(value_counts)
+>                 }
+          
+>         return stability
+      
+>     def _analyze_performance_consistency(
+>         self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+>         """Analyze consistency of performance across windows"""
+          
+!         out_sample_scores = [r["out_sample_score"] for r in results]
+          
+          # Check for deterioration over time
+!         trend = self._calculate_trend(out_sample_scores)
+          
+          # Check for consecutive losses
+!         consecutive_losses = 0
+!         max_consecutive_losses = 0
+          
+!         for score in out_sample_scores:
+!             if score < 0:
+!                 consecutive_losses += 1
+!                 max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+!             else:
+!                 consecutive_losses = 0
+          
+!         return {
+!             "trend": trend,
+!             "positive_windows": sum(1 for s in out_sample_scores if s > 0) / len(out_sample_scores),
+!             "max_consecutive_losses": max_consecutive_losses,
+!             "coefficient_of_variation": np.std(out_sample_scores) / np.mean(out_sample_scores)
+!             if np.mean(out_sample_scores) != 0
+!             else float("inf")
+!         }
+      
+>     def _calculate_trend(self, values: List[float]) -> float:
+>         """Calculate trend in values"""
+>         if len(values) < 2:
+>             return 0
+          
+>         x = np.arange(len(values))
+>         slope, _ = np.polyfit(x, values, 1)
+          
+>         return slope
+      
+>     def _calculate_robustness_score(self, results: List[Dict[str, Any]]) -> float:
+>         """Calculate overall robustness score"""
+          
+          # Factors for robustness
+!         efficiency_ratios = [r["efficiency_ratio"] for r in results]
+!         out_sample_scores = [r["out_sample_score"] for r in results]
+          
+          # Average efficiency (how well out-sample matches in-sample)
+!         avg_efficiency = np.mean(efficiency_ratios)
+          
+          # Consistency (low variance in out-sample performance)
+!         consistency = 1 - (
+!             np.std(out_sample_scores) / (abs(np.mean(out_sample_scores)) + 1e-10)
+!         )
+!         consistency = max(0, consistency)
+          
+          # Positive performance rate
+!         positive_rate = sum(1 for s in out_sample_scores if s > 0) / len(out_sample_scores)
+          
+          # Combine factors
+!         robustness = avg_efficiency * 0.4 + consistency * 0.3 + positive_rate * 0.3
+          
+!         return max(0, min(1, robustness))
+      
+>     def _get_default_param_space(self) -> Dict[str, Any]:
+>         """Get default parameter space for optimization"""
+!         return {
+!             "lookback": [10, 20, 30, 50],
+!             "threshold": [0.01, 0.02, 0.03],
+!             "stop_loss": [0.02, 0.03, 0.05],
+!             "take_profit": [0.05, 0.10, 0.15]
+!         }

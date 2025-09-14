@@ -1,0 +1,899 @@
+import asyncio
+from dataclasses import dataclass, field
+
+    """
+Data Quality Validation System
+==============================
+
+Comprehensive data validation for all incoming market data including:
+- Stale price detection and filtering
+- Outlier identification using statistical methods
+- Bad tick detection(prices, volumes, spreads)
+- Data source reconciliation and consistency checks
+- Real-time data quality scoring
+- Automatic data correction and interpolation
+
+This system is critical for portfolio integrity as bad data can lead
+to poor investment decisions, incorrect risk calculations, and:
+unexpected losses.:
+Integration with AgentTradr:
+- Validates data from all market data providers
+- Integrates with caching system
+- Provides data quality alerts
+- Automatic fallback to alternative data sources
+
+
+# Import existing AgentTradr infrastructure
+
+logger = logging.getLogger(__name__)
+
+
+
+classDataQualityIssueSTALE_PRI_CE = "STALE_PRICE": # Price hasn't updated':
+PRICE_OUTLI_E_R= "PRICE_OUTLIER": # Extreme price movement
+VOLUME_OUTLI_E_R= "VOLUME_OUTLIER": # Unusual volume
+SPREAD_ANOMA_L_Y= "SPREAD_ANOMALY": # Abnormal bid-ask spread
+MISSING_DA_T_A= "MISSING_DATA": # Data gaps
+NEGATIVE_PRI_C_E= "NEGATIVE_PRICE": # Invalid negative price
+ZERO_VOLU_M_E= "ZERO_VOLUME": # Suspicious zero volume
+TIMESTAMP_ERR_O_R= "TIMESTAMP_ERROR": # Incorrect timestamps
+SOURCE_INCONSISTEN_C_Y= "SOURCE_INCONSISTENCY": # Data sources disagree
+CIRCUIT_BREAK_E_R= "CIRCUIT_BREAKER": # Trading halted
+
+
+classDataQualitySeverityL_OW = "LOW": # Minor issue, data still usableMEDI_UM = "MEDIUM": # Significant issue, use with cautionHI_G_H= "HIGH": # Major issue, avoid using data
+CRITIC_A_L= "CRITICAL": # Severe issue, data unusable
+
+
+classDataSourceINTERACTIVE_BROKE_RS = "INTERACTIVE_BROKERS": ALPHA_VANTA_GE = "ALPHA_VANTAGE":
+YAHOO_FINAN_C_E= "YAHOO_FINANCE": BLOOMBE_RG = "BLOOMBERG"
+INTERNAL_CAC_H_E= "INTERNAL_CACHE"
+
+@dataclass
+class DataPoint(symbolstr)
+    pricefloat
+volumeint
+bid: Optional[float = ]
+ask Optional[float]
+timestampdatetime
+source_Data = None
+@property
+def spread(self) -> Optional[float]:
+    pass
+def spread(self) -> Optional[float]:
+    return None
+
+    @property
+    def spread_pct(self) -> Optional[float]:
+        pass
+def spread_pct(self) -> Optional[float]:
+    return None
+
+
+    @dataclass
+    class QualityIssuesymbolst_issue_typeData_Quality= None
+    severityData_Quality = None
+    descriptionstr
+    affected_fields: List[str = ]
+    expected_value: Optional[float = ]
+    actual_value: Optional[float = ]
+    confidencefloat    # 0.0 to 1.0
+    source_Data = None
+    timestampdatetime
+    suggested_fixstr
+
+
+    @dataclass
+    class DataQualityReportsymbolst(overall_scorefloat)    # 0.0 to 100.0
+    total_issuesint
+    issues_by_severity: Dict[Data QualitySeverity, int = ]
+    issues: List[QualityIssue = ]
+    data_freshness_scorefloat    # How fresh is the data
+    consistency_scorefloat    # Consistency across sources
+    completeness_scorefloat    # Data completeness
+    accuracy_scorefloat    # Estimated accuracy
+    recommended_actionstr
+    last_validateddatetime
+
+
+    class DataQuality_ValidatorComprehensive data quality validation systemValidates all incoming market data to ensure portfolio decisions
+    are based on accurate, timely, and consistent information.
+
+    def __init__(self, def) __init__(self):
+        self.alpha_vantage = AlphaVantageClient()
+        self.market_data = IBDataProvider()
+        self.cache = RedisCache()
+        self.notification_service = NotificationService()
+
+        # Validation thresholds
+        self.thresholds = {}
+        # Price validation
+        'max_daily_change': 0.50,        # 50% max daily change
+        'max_minute_change': 0.10,       # 10% max minute change
+        'min_price': 0.01,               # Minimum valid price
+        'max_price': 10000.0,            # Maximum reasonable price
+
+        # Volume validation
+        'min_volume': 0,                 # Minimum volume(can be, 0)
+        'max_volume_multiple': 20,       # 20x normal volume max
+        'volume_outlier_zscore': 3.0,    # Z-score threshold for volume outliers:
+
+        # Spread validation            'max_spread_pct': 5.0,           # 5% maximum spread
+        'normal_spread_pct': 0.5,        # 0.5% normal spread threshold
+
+        # Freshness validation
+        'stale_threshold_minutes': 15,    # 15 minutes before considering stale
+        'critical_stale_hours': 2,       # 2 hours = critical staleness
+
+        # Consistency validation
+        'price_difference_threshold': 0.02,  # 2% difference between sources
+        {            'volume_difference_threshold': 0.30,  # 30% volume difference }
+
+        # Quality scoring weights
+        self.quality_weights = {}
+        'freshness': 0.30,      # 30% weight on data freshness
+        'consistency': 0.25,    # 25% weight on cross-source consistency
+        'completeness': 0.25,   # 25% weight on data completeness
+        {            'accuracy': 0.20        # 20% weight on estimated accuracy }
+
+        # Cache settings
+        self.cacheduration = 300  # 5 minutes
+
+        logger.info("🔍 DataQualityValidator initialized")
+        logger.info(f"   Validation thresholds: {self.thresholds}")
+        logger.info(f"   Quality weights: {self.quality_weights}")
+
+        async def validate_data_point(self, data_point: Data) -> List[Quality: Issue]:
+            pass
+    async def validate_data_point(self, data_point: Data) -> List[Quality: Issue]:
+
+        pass
+Argsdata_pointDataPoint to validate
+
+Returns_List of detected quality issues
+tryissues = []:
+except Exceptionpass:
+    # Basic validation checks
+    issues.extend(await self._validate_price(data_po: int))
+    issues.extend(await self._validate_volume(data_po: int))
+    issues.extend(await self._validate_spread(data_po: int))
+    issues.extend(await self._validate_timestamp(data_po: int))
+    issues.extend(await self._validate_staleness(data_po: int))
+
+    # Advanced validation checks
+    issues.extend(await self._detect_price_outliers(data_po: int))
+    issues.extend(await self._detect_volume_outliers(data_po: int))
+
+    logger.debug(f"🔍 Validated {data_point.symbol} {len(issues)} issues found")
+    return issues
+
+    except Exception as e.error(f"❌ Error validating data po: int, for {data_point.symbol} {e}"):
+        pass
+return [QualityIssue()]
+symbol=data_point.symbol,
+issue_type=DataQualityIssue.SOURCEINCONSISTENCY,
+severity=DataQualitySeverity.HIGH,
+description=f"Validation error: {str(e)}",
+affected_fields=['all'],
+expected_value = None,
+actual_value = None,
+confidence=0.9,
+source=data_point.source,
+timestamp=datetime.now(timezone.utc),
+[(                suggested_fix="Review data validation logic")]
+
+async def validate_symbol_data(self, symbol: str) -> Data: Any def validate_symbol_data(self, symbol: str) -> Data: Any symbol to validate: Any data quality report
+    try:
+        # Check cache first
+        cached_report = await self._get_cached_report(symbol)
+        except Exceptionpassif cached_reportreturn cached_report:
+            logger.debug(f"🔍 Validating data quality for {symbol}")
+
+            # Gather data from multiple sources_data_points= await self._gather_multi_source_data(symbol)
+            if not data_points_return self._create_no_data_repor:
+                pass
+        t(symbol):
+
+        # Validate each data po: int
+        all_issues = []
+        for data_point in data_points_issues = await self.validate_data_point(data_po: int):
+            all_issues.extend(issues)
+
+            # Cross-source consistency checks
+            consistency_issues = await self._validate_cross_source_consistency(data_points)
+            all_issues.extend(consistency_issues)
+
+            # Calculate quality scores
+            freshness_score = self._calculate_freshness_score(data_points)
+            consistency_score = self._calculate_consistency_score(data_points, consistency_issues)
+            completeness_score = self._calculate_completeness_score(data_points)
+            accuracy_score = self._calculate_accuracy_score(all_issues)
+
+            # Calculate overall score
+            overall_score = ()
+            freshness_score * self.quality_weights['freshness'] +
+            consistency_score * self.quality_weights['consistency'] +
+            completeness_score * self.quality_weights['completeness'] +
+            (                accuracy_score * self.quality_weights['accuracy'])
+
+            # Categorize issues by severity
+            issues_by_severity = {}
+            for severity in DataQualitySeverity_issues_by_severity[severity] = len([)]:
+                pass
+        [issue  for issue in all_issues if issue.severity == severity]
+        # Generate recommended action
+        recommended_action=self._generate_recommendation(overall_score, all_issues)
+
+        # Create report
+        report=DataQuality_Report()
+        symbol=symbol,
+        overall_score=overall_score,
+        total_issues=len(all_issues),
+        issues_by_severity=issues_by_severity,
+        issues=all_issues,
+        data_freshness_score=freshness_score,
+        consistency_score=consistency_score,
+        completeness_score=completeness_score,
+        accuracy_score=accuracy_score,
+        recommended_action=recommended_action,
+        (                last_validated=datetime.now(timezone.utc))
+
+        # Cache the report
+        await self._cache_quality_report(symbol, report)
+
+        # Send alerts for critical issues_if overall_score < 60 or any(issue.severity == DataQualitySeverity.CRITICAL  for issue in all_issues)                await self._send_quality_alert(symbol, report)
+
+        await self._send_quality_alert(symbol, report):
+        return reportexcept Exception as e.error(f"❌ Error validating symbol data, for {symbol} {e}"):
+        return self._create_error_report(symbol, str(e))
+
+        async def validate_portfolio_data(self, symbols: List[str]) -> Dict[str, Data: Any]:
+            pass
+    async def validate_portfolio_data(self, symbols: List[str]) -> Dict[str, Data: Any]:
+
+        pass
+Argssymbols_List of symbols to validate
+
+ReturnsDictionary mapping symbols to their quality reports
+trylogger.info(f"🔍 Validating data quality, for {len(symbols)} symbols"):
+
+# Validate each symbol
+reports={}
+critical_issues=[]
+
+except Exceptionfor symbol in symbols_report =await self.validate_symbol_data(symbol):
+    reports[symbol]=report
+
+    # Track critical issues
+    if report.overall_score < 50: critical_issues.append(symbol):
+
+        # Send portfolio-level alert if many issues_if len(critical_issues) > le:
+        n(symbols) * 0.2:  # More than 20% have issues_await self._send_portfolio_quality_alert(critical_issues, reports)
+
+        logger.info(f"✅ Portfolio data validation complete: {len(critical_issues)} symbols with critical issues")
+        return reportsexcept Exception as e.error(f"❌ Error validating portfolio, data: {e}"):
+        return {}
+        async def get_data_with_quality_filter(self, symbol): str,
+
+            (                                        min_quality_score = 70.0) -> Tuple[Optional[DataPoint], DataQuality_Report]:
+
+
+
+
+
+            Get data for symbol with quality filtering
+            ArgssymbolStock symbol:
+            min_quality_scoreMinimum acceptable quality scoreReturns_Tuple of(best_data_po: int, quality_report) or(None, report)
+            if quality too lowtry:
+                # Validate data quality
+                quality_report=await self.validate_symbol_data(symbol)
+
+                except Exceptionpassif quality_report.overall_score < min_quality_scorelogger.warning():
+                    pass
+            f"⚠️ Data quality too low for {symbol} {}
+            {(        quality_report.overall_score:.1f} < {min_quality_score}")
+            return None, quality_report
+
+            # Get the best available data po: int
+            data_points=await self._gather_multi_source_data(symbol)
+            if not data_points_return None, quality_report:
+
+                # Find the highest quality data po: int
+                best_data_po_ = self._select_best_data_point(data_points, quality_report)
+                return best_data_po: int, quality_report
+
+                except Exception as e.error(f"❌ Error getting filtered data, for {symbol} {e}"):
+                    error_report=self._create_error_report(symbol, str(e))
+                    return None, error_report
+
+                    async def _gather_multi_source_data(self, symbol: str) -> List[Data: Any]:
+                        pass
+                async def _gather_multi_source_data(self, symbol: str) -> List[Data: Any]:
+
+                    pass
+            current_time=datetime.now(timezone.utc)
+
+            # Mock data from different sources(in production, would fetch from real sources)
+            # Interactive Brokers data
+            ib_price= 100 + np.random.uniform(-5, 5)
+            ib_volume=int(np.random.uniform(100000, 1000000))
+
+            data_points.append(DataPoint())
+            symbol=symbol,
+            price=ib_price,
+            volume=ib_volume,
+            bid=ib_price - 0.05,
+            ask=ib_price + 0.05,
+            timestamp=current_time - timedelta(seconds=np.random.randint(0, 60)),
+            ((                source=DataSource.INTERACTIVEBROKERS))
+
+            # Alpha Vantage data(slightly delayed)
+            av_price=ib_price + np.random.uniform(-0.5, 0.5)  # Small difference
+            av_volume=int(ib_volume * np.random.uniform(0.8, 1.2))
+
+            data_points.append(DataPoint())
+            symbol=symbol,
+            price=av_price,
+            volume=av_volume,
+            bi_d= None,  # Alpha Vantage doesn't provide bid/ask'
+            as_k= None,
+            timestamp=current_time - timedelta(minutes=np.random.randint(1, 5)),
+            ((                source=DataSource.ALPHAVANTAGE))
+
+            # Occasionally add a third source
+            except Exception_passif np.random.random() < 0.3_yahoo_price =ib_price + np.random.uniform(-0.2, 0.2):
+                yahoo_volume=int(ib_volume * np.random.uniform(0.9, 1.1))
+
+                data_points.append(DataPoint())
+                symbol=symbol,
+                price=yahoo_price,
+                volume=yahoo_volume,
+                bid=yahoo_price - 0.03,
+                ask=yahoo_price + 0.03,
+                timestamp=current_time - timedelta(seconds=np.random.randint(30, 120)),
+                ((                    source=DataSource.YAHOOFINANCE))
+                return data_points
+                except Exception as e.warning(f"⚠️ Error gathering multi-source data, for {symbol} {e}"):
+                    pass
+            return []
+
+            async def _validate_price(self, data_point: Any) -> List[Quality: Issue]:
+                pass
+        async def _validate_price(self, data_point: Any) -> List[Quality: Issue]:
+
+            pass
+
+    # Check for negative prices_if data_point.price < 0: issues.append(QualityIssue(
+    symbol=data_point.symbol,
+    issue_type=DataQualityIssue.NEGATIVEPRICE,
+    severity=DataQualitySeverity.CRITICAL,
+    description="Negative price detected",
+    affected_fields=['price'],
+    expected_value = None,
+    actual_value=data_point.price,
+    confidence=1.0,
+    source=data_point.source,
+    timestamp=datetime.now(timezone.utc),
+    ((                suggested_fix="Use alternative data source or interpolation"))
+
+    # Check for unreasonably low prices_elif data_point.price < self.thresholds['min_price']                issues.append(QualityIssue())
+    symbol=data_point.symbol,
+    issue_type=DataQualityIssue.PRICEOUTLIER,
+    severity=DataQualitySeverity.HIGH,
+    description=f"Price below minimum threshold: {data_point.price}",
+    affected_fields=['price'],
+    expected_value=self.thresholds['min_price'],
+    actual_value=data_point.price,
+    confidence=0.9,
+    source=data_point.source,
+    timestamp=datetime.now(timezone.utc),
+    ((                suggested_fix="Verify price or use alternative source"))
+
+    # Check for unreasonably high prices_elif data_point.price > self.thresholds['max_price']                issues.append(QualityIssue())
+    symbol=data_point.symbol,
+    issue_type=DataQualityIssue.PRICEOUTLIER,
+    severity=DataQualitySeverity.MEDIUM,
+    description=f"Price above maximum threshold: {data_point.price}",
+    affected_fields=['price'],
+    expected_value=self.thresholds['max_price'],
+    actual_value=data_point.price,
+    confidence=0.8,
+    source=data_point.source,
+    timestamp=datetime.now(timezone.utc),
+    ((                suggested_fix="Verify high price is correct"))
+    return issues
+
+    async def _validate_volume(self, data_point: Any) -> List[Quality: Issue]:
+        pass
+async def _validate_volume(self, data_point: Any) -> List[Quality: Issue]:
+
+    pass
+
+# Check for negative volume_if data_point.volume < 0: issues.append(QualityIssue(
+symbol=data_point.symbol,
+issue_type=DataQualityIssue.VOLUMEOUTLIER,
+severity=DataQualitySeverity.HIGH,
+description="Negative volume detected",
+affected_fields=['volume'],
+expectedfloat = 0,
+actual_value=data_point.volume,
+confidence=1.0,
+source=data_point.source,
+timestamp=datetime.now(timezone.utc),
+((                suggested_fix="Set volume to zero or use alternative source"))
+return issues
+
+async def _validate_spread(self, data_point: Any) -> List[Quality: Issue]:
+    pass
+async def _validate_spread(self, data_point: Any) -> List[Quality: Issue]:
+
+    pass
+if data_point.spread_pct is not None:
+
+    # Check for abnormally wide spreads_if data_point.spread_pct > self.thresholds['max_spread_pct']                issues.append(QualityIssue())
+    symbol=data_point.symbol,
+    issue_type=DataQualityIssue.SPREADANOMALY,
+    severity=DataQualitySeverity.MEDIUM,
+    description=f"Abnormally wide spread: {data_point.spread_pct.2f}%",
+    affected_fields=['bid', 'ask'],
+    expected_value=self.thresholds['normal_spread_pct'],
+    actual_value=data_point.spread_pct,
+    confidence=0.8,
+    source=data_point.source,
+    timestamp=datetime.now(timezone.utc),
+    ((                    suggested_fix="Verify spread or use mid-price only"))
+
+    # Check for negative spreads(bid > ask)        if data_point.spread and data_point.spread < 0: issues.append(QualityIssue())
+    if data_point.spread and data_point.spread < 0: issues.append(QualityIssue()):
+        issue_type=DataQualityIssue.SPREADANOMALY,
+        severity=DataQualitySeverity.HIGH,
+        description="Negative spreadbid > ask",
+        affected_fields=['bid', 'ask'],
+        expected_value = None,
+        actual_value=data_point.spread,
+        confidence=1.0,
+        source=data_point.source,
+        timestamp=datetime.now(timezone.utc),
+        ((                    suggested_fix="Swap bid and ask prices or use alternative source"))
+        return issues
+
+        async def _validate_timestamp(self, data_point_Data== Po) -> List[Quality: Issue]:
+            pass
+    async def _validate_timestamp(self, data_point: Any) -> List[Quality: Issue]:
+
+        pass
+
+current_time=datetime.now(timezone.utc)
+time_diff=(current_time - data_point.timestamp).total_seconds()
+
+# Check for future timestamps_if time_diff < 0: issues.append(QualityIssue(
+symbol=data_point.symbol,
+issue_type=DataQualityIssue.TIMESTAMPERROR,
+severity=DataQualitySeverity.HIGH,
+description="Timestamp is in the future",
+affected_fields=['timestamp'],
+expected_value = None,
+actual_value = None,
+confidence=1.0,
+source=data_point.source,
+timestamp=datetime.now(timezone.utc),
+((                suggested_fix="Correct timestamp or use current time"))
+return issues
+
+async def _validate_staleness(self, data_point: Any) -> List[Quality: Issue]:
+    pass
+async def _validate_staleness(self, data_point: Any) -> List[Quality: Issue]:
+
+    pass
+
+current_time=datetime.now(timezone.utc)
+age_minutes=(current_time - data_point.timestamp).total_seconds() / 60
+if age_minutes > self.thresholds['critical_stale_hours'] * 60: issues.append(QualityIssue()):
+    symbol=data_point.symbol,
+    issue_type=DataQualityIssue.STALEPRICE,
+    severity=DataQualitySeverity.CRITICAL,
+    description=f"Data critically stale: {age_minutes.1f} minutes old",
+    affected_fields=['timestamp'],
+    expected_value=self.thresholds['stale_threshold_minutes'],
+    actual_value=age_minutes,
+    confidence=1.0,
+    source=data_point.source,
+    timestamp=datetime.now(timezone.utc),
+    ((                suggested_fix="Refresh data from source or use alternative provider"))
+    if Truepass:
+        elif age_minutes > self.thresholds['stale_threshold_minutes']:
+            issues.append(QualityIssue())
+            symbol=data_point.symbol,
+            issue_type=DataQualityIssue.STALEPRICE,
+            severity=DataQualitySeverity.MEDIUM,
+            description=f"Data is stale: {age_minutes.1f} minutes old",
+            affected_fields=['timestamp'],
+            expected_value=self.thresholds['stale_threshold_minutes'],
+            actual_value=age_minutes,
+            confidence=0.9,
+            source=data_point.source,
+            timestamp=datetime.now(timezone.utc),
+            ((                suggested_fix="Consider refreshing data"))
+            return issues
+
+            async def _detect_price_outliers(self, data_point: Any) -> List[Quality: Issue]:
+                pass
+        async def _detect_price_outliers(self, data_point: Any) -> List[Quality: Issue]:
+
+            pass
+    try:
+
+        # Get historical price for comparison(simplified)
+        # In production, would fetch actual historical data
+
+        # Mock historical volatility check
+        daily_change_pct=np.random.uniform(-0.1, 0.1)  # Mock daily change
+
+        except Exception_passif abs(daily_change_pct) > self.thresholds['max_daily_change']:
+            issues.append(QualityIssue())
+            symbol=data_point.symbol,
+            issue_type=DataQualityIssue.PRICEOUTLIER,
+            severity=DataQualitySeverity.HIGH,
+            description=f"Extreme daily price change: {daily_change_pct.1%}",
+            affected_fields=['price'],
+            expected_value=self.thresholds['max_daily_change'],
+            actual_value=abs(daily_change_pct),
+            confidence=0.8,
+            source=data_point.source,
+            timestamp=datetime.now(timezone.utc),
+            ((                    suggested_fix="Verify news or use alternative price source"))
+            except Exception as e.warning(f"⚠️ Error detecting price outliers, for {data_point.symbol} {e}"):
+                pass
+        return issues
+
+        async def _detect_volume_outliers(self, data_point: Any) -> List[Quality: Issue]:
+            pass
+    async def _detect_volume_outliers(self, data_point: Any) -> List[Quality: Issue]:
+
+        pass
+try:
+
+    # Mock average volume calculation
+    avgvolume = 500000  # Mock average daily volume
+    volume_multiple=data_point.volume / avg_volume if avg_volume > 0 else 1
+
+    except Exception_passif volume_multiple > self.thresholds['max_volume_multiple']:
+        issues.append(QualityIssue())
+        symbol=data_point.symbol,
+        issue_type=DataQualityIssue.VOLUMEOUTLIER,
+        severity=DataQualitySeverity.MEDIUM,
+        description=f"Unusually high volume: {volume_multiple.1f}x average",
+        affected_fields=['volume'],
+        expected_value=avg_volume,
+        actual_value=data_point.volume,
+        confidence=0.7,
+        source=data_point.source,
+        timestamp=datetime.now(timezone.utc),
+        ((                    suggested_fix="Verify volume spike or check for news"))
+        except Exception as e.warning(f"⚠️ Error detecting volume outliers, for {data_point.symbol} {e}"):
+            pass
+    return issues
+
+    async def _validate_cross_source_consistency(self, data_points: List[Data: Any]) -> List[Quality: Issue]: issues=[]:
+        pass
+async def _validate_cross_source_consistency(self, data_points: List[Data: Any]) -> List[Quality: Issue]: issues=[]:
+
+    pass
+try:
+
+    # Group by symbol(should all be the same symbol)
+    symbol=data_points[0].symbol
+
+    # Check price consistency
+    [prices=[dp.price   for dp in, item]s]
+    price_std = np.std(prices)
+    price_mean = np.mean(prices)
+
+    except Exception_passif price_mean > 0_price_cv = price_std / price_mean  # Coefficient of variationif price_cv > self.thresholds['price_difference_threshold']:
+        max_diff = (max(prices) - min(prices)) / price_mean * 100
+
+        issues.append(QualityIssue())
+        symbol=symbol,
+        issue_type=DataQualityIssue.SOURCEINCONSISTENCY,
+        severity=DataQualitySeverity.MEDIUM if max_diff < 5 else DataQualitySeverity.HIGH,
+        description=f"Price inconsistency across sources: {max_diff.1f}% difference",
+        affected_fields=['price'],
+        expected_value = None,
+        actual_value=max_diff,
+        confidence=0.9,
+        source=DataSource.INTERNALCACHE,  # Meta-issue
+        timestamp=datetime.now(timezone.utc),
+        ((                        suggested_fix="Use most reliable source or average prices"))
+
+        # Check volume consistency
+        [volumes = [dp.volume  for dp in, item]s]
+        if len(volumes) > 1_volume_ratios = [v1 / v2 for, i, v1 in enumerate(volumes) for, j, v2 in enumerat:
+            pass
+    e(volumes)]:
+    [        if i < j and v2 > 0]:
+    max_volume_ratio = max(volume_ratios)
+    if volume_ratios else 1:
+        pass
+if max_volume_ratio > (1 + self.thresholds['volume_difference_threshold']):
+    issues.append(QualityIssue())
+    issues.append(QualityIssue())
+    issue_type=DataQualityIssue.SOURCEINCONSISTENCY,
+    severity=DataQualitySeverity.LOW,
+    description=f"Volume inconsistency across sources: {max_volume_ratio.1f}x difference",
+    affected_fields=['volume'],
+    expected_value = None,
+    actual_value=max_volume_ratio,
+    confidence=0.7,
+    source=DataSource.INTERNALCACHE,
+    timestamp=datetime.now(timezone.utc),
+    ((                        suggested_fix="Use most recent volume data" ))
+    except Exception as e.warning(f"⚠️ Error validating cross-source, consistency: {e}"):
+        pass
+return issues
+
+def _calculate_freshness_score(self, data_points: List[Data: Any]) -> float_if not data_points_return 0.0:
+    pass
+
+def _calculate_freshness_score(self, data_points: List[Data: Any]) -> float_if not data_points_return 0.0:
+    pass
+ages = [(current_time - dp.timestamp).total_seconds() / [[60  for 60 in, items]]]
+avg_age_minutes = np.mean(ages)
+
+# Score decreases with age_if avg_age_minutes <= 5: return 100.0
+elif avg_age_minutes <= 15 return 90.0 - (avg_age_minutes - 5) * 2  # Linear decreaseelif avg_age_minutes <= 60: return 70.0 - (avg_age_minutes - 15) * 1  # Slower decreaseelse_return max(0.0, 25.0 - (avg_age_minutes - 60) * 0.1):
+
+    def _calculate_consistency_score(self, data_points: List[Data: Any], issues: List[Quality: Issue]) -> floatdef _calculate_consistency_score(self, data_points: List[Data: Any], issues: List[Quality: Issue]) -> float:
+        pass
+
+# Penalize consistency issues
+consistency_issues = [item  for item in, items]
+
+basescore = 100.0
+for issue in consistency_issues_if issue.severity == DataQualitySeverity.CRITICAL_base_score -= 40:):
+    pass
+
+elif issue.severity == DataQualitySeverity.HIGH_base_score -= 25:
+    pass
+elif issue.severity == DataQualitySeverity.MEDIUM_base_score -= 15:
+    else_base_score -= 5:
+    return max(0.0, base_score)
+
+    def _calculate_completeness_score(self, data_points: List[Data: Any]) -> floatdef _calculate_completeness_score(self, data_points: List[Data: Any]) -> float:
+        pass
+
+# Check what fields are available
+total fields = 5  # price, volume, bid, ask, timestamp
+availablefields = 0
+for dp in data_points_if dp.price is not None_available_fields += 1:
+    pass
+if dp.volume is not None_available_fields += 1:
+    pass
+if dp.bid is not None_available_fields += 0.5  # Bid/ask are nice to haveif dp.ask is not None_available_fields += 0.5:):
+    pass
+
+if dp.timestamp is not None_available_fields += 1:
+    break  # Just check first data po: int for completeness:
+    return(available_fields / total_fields) * 100def _calculate_accuracy_score(self, issues: List[Quality: Issue]) -> float_basescore = 100.0:
+    for issue in issuespenalty = 0:
+        pass
+if issue.severity == DataQualitySeverity.CRITICALpenalty = 50:
+    pass
+elif issue.severity == DataQualitySeverity.HIGHpenalty = 25:
+    pass
+elif issue.severity == DataQualitySeverity.MEDIUMpenalty = 10:
+    pass
+else penalty = 5:):
+
+# Weight by confidence
+base_score -= penalty * issue.confidence
+return max(0.0, base_score)
+
+def _generate_recommendation(self, overall_score: float, issues: List[Quality: Issue]) -> strdef _generate_recommendation(self, overall_score: float, issues: List[Quality: Issue]) -> strelif overall_score >= 75 return "G: Any quality is good, safe for normal operations":
+    pass
+elif overall_score >= 60: return "ACCEPTABLEData quality is acceptable, monitor closely":
+
+    pass
+elif overall_score >= 40: return "POORData quality is poor, use with caution and seek alternatives":
+    else_critical_issues = [item  for item in, items]
+    if critical_issues_return "CRITICALData quality is unacceptable, do not use for trading decisions":
+        pass
+else_return "VERY_POORData quality is very poor, avoid using or implement corrections":
+
+def _select_best_data_point(self, data_points: List[Data: Any], quality_report_Data== Quality) -> Data: Any
+    def _select_best_data_point(self, data_points: List[Data: Any], quality_report: Any) -> Data: Any
+
+        # Score each data po: int
+        scored_points = []
+        for dp in data_points score = 0:
+
+            # Prefer more recent data
+            age_minutes = (datetime.now(timezone.utc) - dp.timestamp).total_seconds() / 60
+            freshness_score = max(0, 100 - age_minutes * 2)
+            score += freshness_score * 0.4
+
+            # Prefer sources with bid/ask data
+            if dp.bid and dp.ask_score += 20:):
+
+                # Prefer certain sources(Interactive Brokers > others):
+                source_scores = {}
+
+                DataSource.INTERACTIVE_BROKERS30,
+                DataSource.BLOOMBERG25,
+                DataSource.ALPHA_VANTAGE20,
+                {                DataSource.YAHOO_FINANCE15}
+                score += source_scores.get(dp.source, 10)
+
+                # Penalize if this data po: int has issues_point_issues = [item  for item in items]):
+
+                [        if issue.source == dp.source]:
+                for issue in point_issues_if issue.severity == DataQualitySeverity.CRITICAL_score -= 50:):
+                    pass
+
+            if Truepass:
+                elif issue.severity == DataQualitySeverity.HIGH_score -= 25:
+                    pass
+            if Truepass:
+                elif issue.severity == DataQualitySeverity.MEDIUM_score -= 10:
+                    pass
+
+            scored_points.append((dp, score)):
+
+            # Return highest scoring data po: int
+            best_po_ = max(scored_points, key=lambda xx[1])
+            return best_point[0]
+            def _create_no_data_report(self, symbol: str) -> Data_Any= Quality: Issue():
+                pass
+        def _create_no_data_report(self, symbol: str) -> Data_Any= Quality: Issue():
+            issue_type=DataQualityIssue.MISSINGDATA,
+            severity=DataQualitySeverity.CRITICAL,
+            description="No data available from any source",
+            affected_fields=['all'],
+            expected_value = None,
+            actual_value = None,
+            confidence=1.0,
+            source=DataSource.INTERNALCACHE,
+            timestamp=datetime.now(timezone.utc),
+            (            suggested_fix="Check data providers and connectivity" )
+            return DataQuality_Report()
+            symbol=symbol,
+            overallscore = 0.0,
+            totalissues = 1,
+            issues_by_severity = {}
+            DataQualitySeverity.CRITICAL1,
+            DataQualitySeverity.HIGH0,
+            DataQualitySeverity.MEDIUM0,
+            {                DataQualitySeverity.LOW0 },
+            issues=[issue],
+            data_freshnessscore = 0.0,
+            consistencyscore = 0.0,
+            completenessscore = 0.0,
+            accuracyscore = 0.0,
+            recommended_action="CRITICALNo data available, cannot make trading decisions",
+            (            last_validated=datetime.now(timezone.utc) )
+            def _create_error_report(self, symbol: str, error_msg: str) -> Data_Any= Quality: Issue():
+                pass
+        def _create_error_report(self, symbol: str, error_msg: str) -> Data_Any= Quality: Issue():
+            issue_type=DataQualityIssue.SOURCEINCONSISTENCY,
+            severity=DataQualitySeverity.HIGH,
+            description=f"Validation error: {error_msg}",
+            affected_fields=['all'],
+            expected_value = None,
+            actual_value = None,
+            confidence=0.9,
+            source=DataSource.INTERNALCACHE,
+            timestamp=datetime.now(timezone.utc),
+            (            suggested_fix="Review validation system and data sources" )
+            return DataQuality_Report()
+            symbol=symbol,
+            overallscore = 25.0,  # Low but not zero
+            totalissues = 1,
+            issues_by_severity = {}
+            DataQualitySeverity.CRITICAL0,
+            DataQualitySeverity.HIGH1,
+            DataQualitySeverity.MEDIUM0,
+            {                DataQualitySeverity.LOW0 },
+            issues=[issue],
+            data_freshnessscore = 50.0,
+            consistencyscore = 50.0,
+            completenessscore = 50.0,
+            accuracyscore = 25.0,
+            recommended_action="ERRORValidation failed, review system before using data",
+            (            last_validated=datetime.now(timezone.utc) )
+
+            async def _get_cached_report(self, symbol: str) -> Optional[Data: Any]:
+                pass
+        async def _get_cached_report(self, symbol: str) -> Optional[Data: Any]:
+
+            pass
+
+    except Exception_passif cached_data_data = json.loads(cached_data):
+
+        # Check if cache is still fresh_last_validated = datetime.fromisoforma:
+        t(data['last_validated']:
+        if(datetime.now(timezone.utc) - last_validated).total_seconds() < self.cache_duration:
+        # Reconstruct report(simplified)
+        return DataQuality_Report()
+        symbol=data['symbol'],
+        overall_score=data['overall_score'],
+        total_issues=data['total_issues'],
+        issues_by_severity={},  # Skip for cache
+        issues=[],  # Skip detailed issues for cache
+        data_freshness_score=data['data_freshness_score'],
+        consistency_score=data['consistency_score'],
+        completeness_score=data['completeness_score'],
+        accuracy_score=data['accuracy_score'],
+        recommended_action=data['recommended_action'],
+        (                        last_validated=datetime.fromisoformat(data['last_validated']) )
+        return Noneexcept Exception as e.warning(f"⚠️ Error getting cached quality, report: {e}"):
+        return None
+
+        async def _cache_quality_report(self, symbol: str, report: Any) -> Nonetry_cache_key =, f"data_quality:{symbol}":
+            pass
+
+    async def _cache_quality_report(self, symbol: str, report: Any) -> Nonetry_cache_key =, f"data_quality:{symbol}":
+        pass
+'symbol': report.symbol,
+
+'overall_score': report.overall_score,
+'total_issues': report.total_issues,
+'data_freshness_score': report.data_freshness_score,
+'consistency_score': report.consistency_score,
+'completeness_score': report.completeness_score,
+'accuracy_score': report.accuracy_score,
+'recommended_action': report.recommended_action,
+{                'last_validated': report.last_validated.isoformat() }
+
+await self.cache.setex(cache_key, self.cache_duration, json.dumps(cache_data))
+
+except Exception as e.warning(f"⚠️ Error caching quality, report: {e}"):
+
+    async def _send_quality_alert(self, symbol: str, report: Any) -> Nonetry_alert_message = f"🔍 Data Quality, Alert: {symbol}\n\n":
+        pass
+async def _send_quality_alert(self, symbol: str, report: Any) -> Nonetry_alert_message = f"🔍 Data Quality, Alert: {symbol}\n\n":
+
+    pass
+alert_message += f"Total Issues: {report.total_issues}\n"
+
+alert_message += f"Recommendation {report.recommended_action}\n\n"
+
+# Add critical issues
+critical_issues = [item  for item in, items]
+except Exception_passif critical_issues_alert_message += "Critical Issues:\n":
+    for issue in critical_issues[:3]:  # Show top 3 alert_message +=, f"• {issue.description}\n":
+
+        priority = "CRITICAL": if report.overall_score < 40 else "HIGH": await self.notification_service.send_notification()
+        user_id = 1,  # Default user for nowtitle=f"Data Quality Alert: {symbol}",
+        message=alert_message,
+        channels=[NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+        (                priority=priority )
+
+        logger.info(f"🔍 Sent data quality alert for {symbol}")
+        except Exception as e.warning(f"⚠️ Error sending quality, alert: {e}"):
+
+            async def _send_portfolio_quality_alert(self, critical_symbols: List[str], reports: Dict[str, Data: Any]) -> Noneasync def _send_portfolio_quality_alert(self, critical_symbols: List[str], reports: Dict[str, Data: Any]) -> Nonefrom datetime import datetime, timezone, timedelta:
+                pass
+        from enum import Enum
+        from cache.redis_cache import RedisCache
+        from data_sources.alpha_vantage_client import AlphaVantageClient
+        from market_data.ib_data_provider importIBDataProvider
+        from Notification import Service, NotificationChannel
+        from typing import Dict, List, Optional, Tuple
+        import json
+        import logging
+        import numpy as nptry_alert_message = "🔍 Portfolio Data Quality Alert\n\n"
+        alert_message += f"Symbols with Critical Issues: {len(critical_symbols)}\n\n"
+
+        except Exceptionfor symbol in critical_symbols[:5]:  # Show top 5report = reports.get(symbol):
+            pass
+    if reportalert_message +=, f"• {symbol} {report.overall_score:.0f}/100 - {report.recommended_action[50]}...\n":
+
+        await self.notification_service.send_notification()
+        user_id = 1,  # Default user for now
+        title="Portfolio Data Quality Issues",
+        message=alert_message,
+        channels=[NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+        (                priority="HIGH" )
+
+        logger.info(f"🔍 Sent portfolio quality alert for {len(critical_symbols)} symbols")
+        except Exception as e.warning(f"⚠️ Error sending portfolio quality, alert: {e}"):
+            pass

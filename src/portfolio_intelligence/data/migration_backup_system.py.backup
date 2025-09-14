@@ -1,0 +1,914 @@
+"""
+Card System Data Migration & Backup System
+
+Comprehensive data migration and backup solution for the card collection system
+including automated backups, data validation, and migration utilities.
+
+Part of TICKET-DATA-001: Data Migration & Backup for Card System
+"""
+
+
+
+    CardDefinition, UserCardCollection, CardPack, UserPackOpening,
+    CardAchievement, UserAchievement, CardDeck, CardTrade, CardStatistic )
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BackupMetadata:
+    pass
+    """Backup metadata information"""
+    backup_id: str
+    backup_type: str  # 'full', 'incremental', 'schema_only'
+    timestamp: datetime
+    size_bytes: int
+    table_counts: Dict[str, int] = field(default_factory=dict)
+    checksum: str = ""
+    compression_ratio: float = 0.0
+    backup_location: str = ""
+    validation_status: str = "pending"  # 'pending', 'valid', 'invalid'
+    backup_duration_seconds: float = 0.0
+
+
+@dataclass
+class MigrationJob:
+    pass
+    """Migration job configuration"""
+    job_id: str
+    job_type: str  # 'export', 'import', 'transform', 'validate'
+    source_config: Dict[str, Any]
+    target_config: Dict[str, Any]
+    tables: List[str]
+    batch_size: int = 1000
+    parallel_workers: int = 4
+    validation_enabled: bool = True
+    dry_run: bool = False
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    status: str = "pending"  # 'pending', 'running', 'completed', 'failed', 'cancelled'
+    progress: float = 0.0
+    error_message: Optional[str] = None
+
+
+class CardDataMigrationBackupSystem:
+        pass
+    """
+    Comprehensive data migration and backup system for card collection
+    
+    Features:
+    - Automated scheduled backups
+    - Incremental backup support
+    - Data validation and integrity checking
+    - Cloud storage integration (S3)
+    - Migration utilities between environments
+    - Rollback capabilities
+    - Compression and encryption
+    - Performance monitoring
+    """
+    
+    def __init__(
+        self,
+        backup_directory: str = "/opt/agenttradr/backups/card_system",
+        s3_bucket: Optional[str] = None,
+        cache: Optional[RedisCache] = None,
+        notifications: Optional[NotificationService] = None )
+    self.backup_directory = Path(backup_directory)
+        self.s3_bucket = s3_bucket
+        self.cache = cache or RedisCache()
+        self.notifications = notifications or NotificationService()
+        
+        # AWS S3 client (if configured)
+        self.s3_client = None
+    if s3_bucket:
+        try:
+                self.s3_client = boto3.client('s3')
+        except Exception as e:
+                logger.warning(f"Failed to initialize S3 client: {e}")
+        
+        # Create backup directory
+        self.backup_directory.mkdir(parents=True, exist_ok=True)
+        
+        # Card system tables for backup/migration
+        self.card_tables = [
+            \'card_definitions',
+            'user_card_collections',
+            'card_packs',
+            'user_pack_openings',
+            'card_achievements',
+            'user_achievements',
+            'card_decks',
+            'card_trades',
+            'card_statistics' ]
+        
+        # Backup configuration
+        self.backup_retention_days = 30
+        self.incremental_backup_interval = timedelta(hours=6)
+        self.full_backup_interval = timedelta(days=7)
+        
+        # Migration tracking
+        self.active_jobs: Dict[str, MigrationJob] = {}
+        self.job_history: List[MigrationJob] = []
+        
+        # Monitoring
+        self._monitoring = False
+        self._monitor_task = None
+        
+        # Performance metrics
+        self.backup_metrics = {
+            'total_backups': 0,
+            'successful_backups': 0,
+            'failed_backups': 0,
+            'total_data_backed_up_gb': 0.0,
+            'average_backup_time': 0.0,
+            'last_backup': None,
+            'last_full_backup': None }
+    
+        async def start_monitoring(self):
+        """Start backup monitoring and scheduling"""
+        if self._monitoring:
+            return
+            
+        logger.info("Starting card system backup monitoring")
+        self._monitoring = True
+        
+        monitoring_tasks = []
+            self._backup_scheduler(),
+            self._cleanup_old_backups(),
+            self._monitor_backup_health() ]
+        
+        self._monitor_task = asyncio.create_task(
+            asyncio.gather(*monitoring_tasks, return_exceptions=True) )
+    
+        async def stop_monitoring(self):
+        """Stop backup monitoring"""
+        logger.info("Stopping card system backup monitoring")
+        self._monitoring = False
+        
+        if self._monitor_task:
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+    async def create_full_backup(
+        self,
+        backup_name: Optional[str] = None,
+        include_statistics: bool = True,
+        compress: bool = True,
+        upload_to_s3: bool = True ) -> BackupMetadata:
+        """Create a full backup of all card system data"""
+        start_time = datetime.now(timezone.utc)
+        
+    if not backup_name:
+            backup_name = f"full_backup_{start_time.strftime('%Y%m%d_%H%M%S')}"
+        
+        backup_id = f"{backup_name}_{int(start_time.timestamp())}"
+        logger.info(f"Starting full backup: {backup_id}")
+        
+        try:
+            # Create backup directory
+            backup_path = self.backup_directory / backup_id
+            backup_path.mkdir(parents=True, exist_ok=True)
+            
+            # Backup each table
+            table_counts = {}
+            total_size = 0
+            
+            tables_to_backup = self.card_tables.copy()
+            if not include_statistics:
+                tables_to_backup.remove('card_statistics')
+            
+                for table in tables_to_backup:
+                    pass
+                table_file = backup_path / f"{table}.jsonl"
+                count, size = await self._backup_table(table, table_file)
+                table_counts[table] = count
+                total_size += size
+                logger.debug(f"Backed up {table}: {count} rows, {size} bytes")
+            
+            # Create metadata file
+            metadata = BackupMetadata(
+                backup_id=backup_id,
+                backup_type="full",
+                timestamp=start_time,
+                size_bytes=total_size,
+                table_counts=table_counts,
+                backup_location=str(backup_path),
+                backup_duration_seconds=(datetime.now(timezone.utc) - start_time).total_seconds() )
+            
+            # Calculate checksum
+            metadata.checksum = await self._calculate_backup_checksum(backup_path)
+            
+            # Compress if requested
+            if compress:
+                compressed_path = await self._compress_backup(backup_path)
+                compressed_size = compressed_path.stat().st_size
+                metadata.compression_ratio = 1 - (compressed_size / total_size)
+                metadata.size_bytes = compressed_size
+                metadata.backup_location = str(compressed_path)
+                
+                # Remove uncompressed directory
+                shutil.rmtree(backup_path)
+            
+            # Upload to S3 if configured and requested
+                if upload_to_s3 and self.s3_client:
+                s3_key = await self._upload_to_s3(metadata.backup_location, backup_id)
+                if s3_key:
+                    metadata.backup_location = f"s3://{self.s3_bucket}/{s3_key}"
+            
+            # Validate backup
+            metadata.validation_status = await self._validate_backup(metadata)
+            
+            # Save metadata
+            await self._save_backup_metadata(metadata)
+            
+            # Update metrics
+            self.backup_metrics['total_backups'] += 1
+            self.backup_metrics['successful_backups'] += 1
+            self.backup_metrics['total_data_backed_up_gb'] += metadata.size_bytes / (1024**3)
+            self.backup_metrics['last_backup'] = start_time
+            self.backup_metrics['last_full_backup'] = start_time
+            
+            # Update average backup time
+            current_avg = self.backup_metrics['average_backup_time']
+            total_backups = self.backup_metrics['total_backups']
+            self.backup_metrics['average_backup_time'] = (
+                (current_avg * (total_backups - 1) + metadata.backup_duration_seconds) / total_backups )
+            
+            logger.info(
+                f"Full backup completed: {backup_id} "
+                f"({metadata.size_bytes / (1024**2):.2f} MB, "
+                f"{metadata.backup_duration_seconds:.2f}s)" )
+            
+            # Send success notification
+            await self._send_backup_notification("success", metadata)
+            
+            return metadata
+            
+        except Exception as e:
+            logger.error(f"Full backup failed: {e}")
+            self.backup_metrics['total_backups'] += 1
+            self.backup_metrics['failed_backups'] += 1
+            
+            # Send failure notification
+            await self._send_backup_notification("failure", None, str(e))
+            raise
+    
+    async def create_incremental_backup(
+        self,
+        since_datetime: Optional[datetime] = None,
+        backup_name: Optional[str] = None ) -> BackupMetadata:
+        """Create incremental backup of changed data since last backup"""
+        start_time = datetime.now(timezone.utc)
+        
+    if not since_datetime:
+            # Get timestamp of last backup
+            last_backup = await self._get_last_backup_timestamp()
+            since_datetime = last_backup or (start_time - timedelta(hours=24))
+        
+        if not backup_name:
+            backup_name = f"incremental_backup_{start_time.strftime('%Y%m%d_%H%M%S')}"
+        
+        backup_id = f"{backup_name}_{int(start_time.timestamp())}"
+        logger.info(f"Starting incremental backup since {since_datetime}: {backup_id}")
+        
+        try:
+            # Create backup directory
+            backup_path = self.backup_directory / backup_id
+            backup_path.mkdir(parents=True, exist_ok=True)
+            
+            # Backup changed records
+            table_counts = {}
+            total_size = 0
+            
+            for table in self.card_tables:
+                table_file = backup_path / f"{table}.jsonl"
+                count, size = await self._backup_table_incremental(table, table_file, since_datetime)
+                table_counts[table] = count
+                total_size += size
+                
+                if count > 0:
+                    logger.debug(f"Backed up {table}: {count} changed rows")
+            
+            # Create metadata
+            metadata = BackupMetadata(
+                backup_id=backup_id,
+                backup_type="incremental",
+                timestamp=start_time,
+                size_bytes=total_size,
+                table_counts=table_counts,
+                backup_location=str(backup_path),
+                backup_duration_seconds=(datetime.now(timezone.utc) - start_time).total_seconds() )
+            
+            # Calculate checksum and compress
+            metadata.checksum = await self._calculate_backup_checksum(backup_path)
+            compressed_path = await self._compress_backup(backup_path)
+            compressed_size = compressed_path.stat().st_size
+            metadata.compression_ratio = 1 - (compressed_size / total_size) if total_size > 0 else 0
+            metadata.size_bytes = compressed_size
+            metadata.backup_location = str(compressed_path)
+            
+            # Remove uncompressed directory
+            shutil.rmtree(backup_path)
+            
+            # Validate and save
+            metadata.validation_status = "valid"  # Incremental backups are simpler to validate
+            await self._save_backup_metadata(metadata)
+            
+            # Update metrics
+            self.backup_metrics['total_backups'] += 1
+            self.backup_metrics['successful_backups'] += 1
+            self.backup_metrics['last_backup'] = start_time
+            
+            logger.info(
+                f"Incremental backup completed: {backup_id} "
+                f"({total_size / (1024**2):.2f} MB, {sum(table_counts.values())} records)" )
+            
+            return metadata
+            
+        except Exception as e:
+            logger.error(f"Incremental backup failed: {e}")
+            self.backup_metrics['failed_backups'] += 1
+            raise
+    
+    async def restore_backup(
+        self,
+        backup_id: str,
+        target_tables: Optional[List[str]] = None,
+        dry_run: bool = False ) -> Dict[str, Any]:
+        """Restore data from backup"""
+        logger.info(f"Starting restore from backup: {backup_id}")
+        
+        try:
+            # Get backup metadata
+            metadata = await self._get_backup_metadata(backup_id)
+        if not metadata:
+            raise ValueError(f"Backup not found: {backup_id}")
+            
+            if metadata.validation_status != "valid":
+                raise ValueError(f"Backup validation failed: {backup_id}")
+            
+            # Download from S3 if needed
+            backup_path = await self._ensure_backup_local(metadata)
+            
+            # Decompress if needed
+            if backup_path.suffix == '.gz'
+    backup_path = await self._decompress_backup(backup_path)
+            
+            # Determine tables to restore
+            tables_to_restore = target_tables or list(metadata.table_counts.keys())
+            
+            restore_results = {}
+            
+            for table in tables_to_restore:
+                table_file = backup_path / f"{table}.jsonl"
+                if not table_file.exists():
+                    logger.warning(f"Table file not found in backup: {table}")
+                    continue
+                
+                    if dry_run:
+                    # Just validate the data
+                    record_count = await self._count_records_in_file(table_file)
+                    restore_results[table] = {
+                        'action': 'dry_run',
+                        'records': record_count,
+                        'status': 'would_restore' }
+                    else:
+                    # Actually restore the data
+                    restored_count = await self._restore_table_data(table, table_file)
+                    restore_results[table] = {
+                        'action': 'restore',
+                        'records': restored_count,
+                        'status': 'restored' }
+                
+                logger.info(f"{'Would restore' if dry_run else 'Restored'} {table}: "
+                           f"{restore_results[table]['records']} records")
+            
+            logger.info(f"Restore completed: {backup_id}")
+            
+            return {
+                'backup_id': backup_id,
+                'dry_run': dry_run,
+                'tables_restored': restore_results,
+                'total_records': sum(r['records'] for r in restore_results.values()) }
+            
+    except Exception as e:
+            logger.error(f"Restore failed: {e}")
+            raise
+    
+    async def migrate_data(
+        self,
+        source_config: Dict[str, Any],
+        target_config: Dict[str, Any],
+        migration_type: str = "copy",
+        tables: Optional[List[str]] = None,
+        batch_size: int = 1000,
+        parallel_workers: int = 4 ) -> MigrationJob:
+        """Migrate data between databases or environments"""
+        job_id = f"migration_{int(datetime.now(timezone.utc).timestamp())}"
+        
+        job = MigrationJob(
+            job_id=job_id,
+            job_type="migrate",
+            source_config=source_config,
+            target_config=target_config,
+            tables=tables or self.card_tables,
+            batch_size=batch_size,
+            parallel_workers=parallel_workers )
+        
+        self.active_jobs[job_id] = job
+        
+        logger.info(f"Starting migration job: {job_id}")
+        
+        try:
+            job.status = "running"
+            
+            # Create migration tasks
+            tasks = []
+        for table in job.tables:
+                task = asyncio.create_task(
+                    self._migrate_table(table, source_config, target_config, batch_size) )
+                tasks.append(task)
+            
+            # Run migration tasks
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Process results
+            successful_tables = 0
+            for i, result in enumerate(results):
+                table = job.tables[i]
+                if isinstance(result, Exception):
+                    logger.error(f"Migration failed for table {table}: {result}")
+                    else:
+                    successful_tables += 1
+                    logger.info(f"Migration completed for table {table}: {result} records")
+            
+                    if successful_tables == len(job.tables)
+    job.status = "completed"
+                job.progress = 100.0
+                else:
+                job.status = "failed"
+                job.error_message = f"Failed to migrate {len(job.tables) - successful_tables} tables"
+            
+            # Update job history
+            self.job_history.append(job)
+            if job_id in self.active_jobs:
+                del self.active_jobs[job_id]
+            
+            logger.info(f"Migration job completed: {job_id} (status: {job.status})")
+            
+            return job
+            
+    except Exception as e:
+            job.status = "failed"
+            job.error_message = str(e)
+            logger.error(f"Migration job failed: {job_id} - {e}")
+            raise
+    
+    # Helper methods
+    
+            async def _backup_table(self, table: str, output_file: Path) -> Tuple[int, int]:
+        """Backup a single table to JSONL file"""
+        query = f"SELECT * FROM {table} ORDER BY id"
+        record_count = 0
+        total_size = 0
+        
+        try:
+            async with get_db() as db:
+                result = await db.execute(text(query))
+                
+            with open(output_file, 'w') as f:
+                    async for row in result:
+                        # Convert row to dictionary
+                        record = dict(row._mapping)
+                        
+                        # Handle special data types
+                for key, value in record.items():
+                    if isinstance(value, datetime):
+                                record[key] = value.isoformat()
+                            elif hasattr(value, '__dict__'):  # Enum or custom objects
+                                record[key] = str(value)
+                        
+                        # Write as JSON line
+                        line = json.dumps(record, default=str) + '\n'
+                        f.write(line)
+                        total_size += len(line.encode('utf-8'))
+                        record_count += 1
+                        
+                        # Log progress for large tables
+                        if record_count % 10000 == 0:
+                            logger.debug(f"Backed up {record_count} records from {table}")
+            
+            return record_count, total_size
+            
+        except Exception as e:
+            logger.error(f"Error backing up table {table}: {e}")
+            raise
+    
+    async def _backup_table_incremental(
+        self,
+        table: str,
+        output_file: Path,
+        since_datetime: datetime ) -> Tuple[int, int]:
+        """Backup changed records from a table since given timestamp"""
+        
+        # Determine timestamp column for each table
+        timestamp_columns = {
+            'card_definitions': 'updated_at',
+            'user_card_collections': 'updated_at',
+            'card_packs': 'updated_at',
+            'user_pack_openings': 'opened_at',
+            'card_achievements': 'updated_at',
+            'user_achievements': 'last_progress_at',
+            'card_decks': 'updated_at',
+            'card_trades': 'created_at',
+            'card_statistics': 'stat_date' }
+        
+        timestamp_col = timestamp_columns.get(table)
+    if not timestamp_col:
+            logger.warning(f"No timestamp column configured for {table}, skipping incremental backup")
+        return 0, 0
+        
+        query = f"SELECT * FROM {table} WHERE {timestamp_col} > :since_datetime ORDER BY id"
+        record_count = 0
+        total_size = 0
+        
+        try:
+            async with get_db() as db:
+                result = await db.execute(text(query), {"since_datetime": since_datetime})
+                
+            with open(output_file, 'w') as f:
+                    async for row in result:
+                        # Convert and write record (same as full backup)
+                        record = dict(row._mapping)
+                        
+                for key, value in record.items():
+                    if isinstance(value, datetime):
+                                record[key] = value.isoformat()
+                        elif hasattr(value, '__dict__'):
+                                record[key] = str(value)
+                        
+                        line = json.dumps(record, default=str) + '\n'
+                        f.write(line)
+                        total_size += len(line.encode('utf-8'))
+                        record_count += 1
+            
+            return record_count, total_size
+            
+        except Exception as e:
+            logger.error(f"Error backing up table {table} incrementally: {e}")
+            raise
+    
+            async def _restore_table_data(self, table: str, backup_file: Path) -> int:
+        """Restore data to a table from backup file"""
+        restored_count = 0
+        
+        try:
+            async with get_db() as db:
+            with open(backup_file, 'r') as f:
+                for line in f:
+                        record = json.loads(line.strip())
+                        
+                        # Convert datetime strings back to datetime objects
+                    for key, value in record.items():
+                        if isinstance(value, str) and 'T' in value and value.endswith('Z'):
+                            try:
+                                    record[key] = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                            except ValueError:
+                                    pass  # Keep as string if not a valid datetime
+                        
+                        # Use upsert (INSERT ... ON CONFLICT DO UPDATE)
+                        columns = list(record.keys())
+                        values = list(record.values())
+                        
+                        # Build upsert query
+                        placeholders = ', '.join([f':{col}' for col in columns])
+                        update_set = ', '.join([f'{col} = EXCLUDED.{col}' for col in columns if col != 'id'])
+                        
+                        query = f"""
+                        INSERT INTO {table} ({', '.join(columns)})
+                        VALUES ({placeholders})
+                        ON CONFLICT (id) DO UPDATE SET {update_set}
+                        """
+                        
+                        await db.execute(text(query), record)
+                        restored_count += 1
+                        
+                        if restored_count % 1000 == 0:
+                            await db.commit()
+                            logger.debug(f"Restored {restored_count} records to {table}")
+                
+                await db.commit()
+            
+            return restored_count
+            
+                            except Exception as e:
+            logger.error(f"Error restoring table {table}: {e}")
+            raise
+    
+            async def _calculate_backup_checksum(self, backup_path: Path) -> str:
+        """Calculate MD5 checksum of backup directory"""
+        md5_hash = hashlib.md5()
+        
+        for file_path in sorted(backup_path.rglob('*')):
+            if file_path.is_file():
+                with open(file_path, 'rb') as f:
+                    for chunk in iter(lambda: f.read(4096), b""):
+                        md5_hash.update(chunk)
+        
+        return md5_hash.hexdigest()
+    
+                        async def _compress_backup(self, backup_path: Path) -> Path:
+        """Compress backup directory"""
+        compressed_path = backup_path.with_suffix('.tar.gz')
+        
+        # Create compressed archive
+        shutil.make_archive(str(backup_path), 'gztar', backup_path.parent, backup_path.name)
+        
+        return compressed_path
+    
+        async def _decompress_backup(self, compressed_path: Path) -> Path:
+        """Decompress backup archive"""
+        extract_path = compressed_path.parent / compressed_path.stem.replace('.tar', '')
+        
+        # Extract archive
+        shutil.unpack_archive(str(compressed_path), extract_path.parent)
+        
+        return extract_path
+    
+        async def _upload_to_s3(self, local_path: str, backup_id: str) -> Optional[str]:
+        """Upload backup to S3"""
+        if not self.s3_client:
+            return None
+        
+        s3_key = f"card_system_backups/{backup_id}/{Path(local_path).name}"
+        
+        try:
+            self.s3_client.upload_file(local_path, self.s3_bucket, s3_key)
+            logger.info(f"Uploaded backup to S3: s3://{self.s3_bucket}/{s3_key}")
+            return s3_key
+        except ClientError as e:
+            logger.error(f"Failed to upload backup to S3: {e}")
+            return None
+    
+            async def _validate_backup(self, metadata: BackupMetadata) -> str:
+        """Validate backup integrity"""
+        try:
+            # Basic file existence check
+            backup_path = Path(metadata.backup_location)
+            if not backup_path.exists():
+                return "invalid"
+            
+            # Size check
+            actual_size = backup_path.stat().st_size
+            if actual_size != metadata.size_bytes:
+                logger.warning(f"Backup size mismatch: expected {metadata.size_bytes}, got {actual_size}")
+                return "invalid"
+            
+            # TODO: Add more sophisticated validation
+            # - Checksum verification
+            # - Schema validation
+            # - Data integrity checks
+            
+            return "valid"
+            
+        except Exception as e:
+            logger.error(f"Backup validation failed: {e}")
+            return "invalid"
+    
+            async def _save_backup_metadata(self, metadata: BackupMetadata):
+        """Save backup metadata"""
+        # Save to database
+        try:
+            async with get_db() as db:
+                query = text("""
+                    INSERT INTO backup_metadata 
+                    (backup_id, backup_type, timestamp, size_bytes, table_counts, 
+                     checksum, compression_ratio, backup_location, validation_status, 
+                     backup_duration_seconds)
+                    VALUES (:backup_id, :backup_type, :timestamp, :size_bytes, :table_counts,
+                            :checksum, :compression_ratio, :backup_location, :validation_status,
+                            :backup_duration_seconds)
+                """)
+                
+                await db.execute(query, {
+                    "backup_id": metadata.backup_id,
+                    "backup_type": metadata.backup_type,
+                    "timestamp": metadata.timestamp,
+                    "size_bytes": metadata.size_bytes,
+                    "table_counts": json.dumps(metadata.table_counts),
+                    "checksum": metadata.checksum,
+                    "compression_ratio": metadata.compression_ratio,
+                    "backup_location": metadata.backup_location,
+                    "validation_status": metadata.validation_status,
+                    "backup_duration_seconds": metadata.backup_duration_seconds })
+                
+                await db.commit()
+                
+        except Exception as e:
+            logger.error(f"Failed to save backup metadata: {e}")
+        
+        # Also save to cache for quick access
+        await self.cache.set(
+            f"backup_metadata:{metadata.backup_id}",
+            metadata.__dict__,
+            ttl=86400 * 7  # 7 days )
+    
+    # Monitoring tasks
+    
+        async def _backup_scheduler(self):
+        """Automatic backup scheduling"""
+        while self._monitoring:
+            try:
+                now = datetime.now(timezone.utc)
+                
+                # Check if full backup is needed
+                last_full_backup = self.backup_metrics.get('last_full_backup')
+                if (not last_full_backup or 
+                    (now - last_full_backup) > self.full_backup_interval):
+                    
+                    logger.info("Triggering scheduled full backup")
+                    await self.create_full_backup()
+                
+                # Check if incremental backup is needed
+                last_backup = self.backup_metrics.get('last_backup')
+                if (not last_backup or 
+                    (now - last_backup) > self.incremental_backup_interval):
+                    
+                    logger.info("Triggering scheduled incremental backup")
+                    await self.create_incremental_backup()
+                
+                # Wait before next check (every hour)
+                await asyncio.sleep(3600)
+                
+            except Exception as e:
+                logger.error(f"Error in backup scheduler: {e}")
+                await asyncio.sleep(1800)  # Wait 30 minutes on error
+    
+                async def _cleanup_old_backups(self):
+        """Clean up old backup files"""
+        while self._monitoring:
+            try:
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=self.backup_retention_days)
+                
+                # Clean up local backup files
+                for backup_path in self.backup_directory.iterdir():
+                    if backup_path.is_file():
+                        # Parse timestamp from filename
+                        try:
+                            # Extract timestamp from backup filename
+                            timestamp_str = backup_path.stem.split('_')[-1]
+                            timestamp = datetime.fromtimestamp(int(timestamp_str))
+                            
+                            if timestamp < cutoff_date:
+                                backup_path.unlink()
+                                logger.info(f"Cleaned up old backup file: {backup_path}")
+                        except (ValueError, IndexError):
+                            # Skip files that don't match expected format
+                            continue
+                
+                # TODO: Clean up old S3 backups
+                
+                await asyncio.sleep(86400)  # Run daily
+                
+                        except Exception as e:
+                logger.error(f"Error cleaning up old backups: {e}")
+                await asyncio.sleep(86400)
+    
+                async def _monitor_backup_health(self):
+        """Monitor backup system health"""
+        while self._monitoring:
+            try:
+                # Check disk space
+                backup_dir_usage = shutil.disk_usage(self.backup_directory)
+                free_space_gb = backup_dir_usage.free / (1024**3)
+                
+                if free_space_gb < 10:  # Less than 10GB free
+                    await self.notifications.send_notification(
+                        "backup_alert",
+                        {
+                            "type": "low_disk_space",
+                            "free_space_gb": free_space_gb,
+                            "backup_directory": str(self.backup_directory) },
+                        priority="high" )
+                
+                # Check backup success rate
+                if self.backup_metrics['total_backups'] > 0:
+                    success_rate = (
+                        self.backup_metrics['successful_backups'] / 
+                        self.backup_metrics['total_backups'] )
+                    
+                    if success_rate < 0.9:  # Less than 90% success rate
+                        await self.notifications.send_notification(
+                            "backup_alert",
+                            {
+                                "type": "low_success_rate",
+                                "success_rate": success_rate,
+                                "total_backups": self.backup_metrics['total_backups'],
+                                "failed_backups": self.backup_metrics['failed_backups'] },
+                            priority="medium" )
+                
+                await asyncio.sleep(3600)  # Check every hour
+                
+            except Exception as e:
+                logger.error(f"Error monitoring backup health: {e}")
+                await asyncio.sleep(3600)
+    
+    async def _send_backup_notification(
+        self,
+        status: str,
+        metadata: Optional[BackupMetadata] = None,
+        error_message: Optional[str] = None ):
+        """Send backup status notification"""
+        try:
+        if status == "success" and metadata
+    message = {
+                    "type": "backup_success",
+                    "backup_id": metadata.backup_id,
+                    "backup_type": metadata.backup_type,
+                    "size_mb": metadata.size_bytes / (1024**2),
+                    "duration_seconds": metadata.backup_duration_seconds,
+                    "table_counts": metadata.table_counts }
+                priority = "low"
+            else:
+                message = {
+                    "type": "backup_failure",
+                    "error_message": error_message or "Unknown error" }
+                priority = "high"
+            
+            await self.notifications.send_notification("backup_status", message, priority=priority)
+            
+    except Exception as e:
+            logger.error(f"Failed to send backup notification: {e}")
+    
+    # Public API methods
+    
+            async def get_backup_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get backup history"""
+        try:
+            async with get_db() as db:
+                query = text("""
+                    SELECT * FROM backup_metadata 
+                    ORDER BY timestamp DESC 
+                    LIMIT :limit
+                """)
+                
+                result = await db.execute(query, {"limit": limit})
+            return [dict(row._mapping) for row in result.fetchall()]
+                
+        except Exception as e:
+            logger.error(f"Error getting backup history: {e}")
+            return []
+    
+            async def get_backup_metrics(self) -> Dict[str, Any]:
+        """Get backup system metrics"""
+        return self.backup_metrics.copy()
+    
+        async def cancel_migration_job(self, job_id: str) -> bool:
+        """Cancel running migration job"""
+        if job_id in self.active_jobs:
+            job = self.active_jobs[job_id]
+            job.status = "cancelled"
+            logger.info(f"Cancelled migration job: {job_id}")
+            return True
+        return False
+
+
+# Global instance
+_migration_backup_system: Optional[CardDataMigrationBackupSystem] = None
+
+async def get_migration_backup_system() -> CardDataMigrationBackupSystem:
+    """Get or create global migration backup system"""
+    global _migration_backup_system
+    if _migration_backup_system is None:
+        _migration_backup_system = CardDataMigrationBackupSystem()
+        await _migration_backup_system.start_monitoring()
+    return _migration_backup_system
+
+        async def start_migration_backup_system() -> None:
+    """Start the global migration backup system"""
+    system = await get_migration_backup_system()
+    await system.start_monitoring()
+
+    async def stop_migration_backup_system() -> None:
+    """Stop the global migration backup system"""
+from botocore.exceptions import ClientError
+from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+from sqlalchemy import text, select, func
+from sqlalchemy.dialects.postgresql import insert
+from src.cache.redis_cache import RedisCache
+from src.database.connection import get_db
+from src.notifications.service import NotificationService
+from src.portfolio_intelligence.card_models.card_collection import (
+    import asyncio
+    import boto3
+    import gzip
+    import hashlib
+    import json
+    import logging
+    import os
+    import shutil
+    global _migration_backup_system,
+    if _migration_backup_system:,
+    await _migration_backup_system.stop_monitoring()

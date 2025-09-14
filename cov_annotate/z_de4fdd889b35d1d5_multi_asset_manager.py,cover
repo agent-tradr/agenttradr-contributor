@@ -1,0 +1,985 @@
+> from dataclasses import dataclass
+> from datetime import datetime, timezone
+> from sqlalchemy.orm import Session
+> from typing import Any, Dict, List, Optional, Tuple
+> import logging
+> import random
+  
+> logger = logging.getLogger(__name__)
+  
+  
+> class AssetClass:
+>     """Asset class enumeration."""
+  
+>     FOREX = "forex"
+>     STOCKS = "stocks"
+>     CRYPTO = "crypto"
+>     COMMODITIES = "commodities"
+>     INDICES = "indices"
+>     BONDS = "bonds"
+  
+  
+> class MarketSession:
+>     """Market session enumeration."""
+  
+>     LONDON = "london"
+>     NEW_YORK = "new_york"
+>     TOKYO = "tokyo"
+>     SYDNEY = "sydney"
+>     CRYPTO_24_7 = "crypto_24_7"
+  
+  
+> @dataclass
+> class AssetInfo:
+>     """Asset information structure."""
+  
+>     symbol: str
+>     name: str
+>     asset_class: AssetClass
+>     exchange: str
+>     base_currency: str
+>     quote_currency: Optional[str] = None
+>     contract_size: float = 1.0
+>     min_lot_size: float = 0.01
+>     max_lot_size: float = 100.0
+>     pip_value: float = 0.0001
+>     spread_typical: float = 0.0002
+>     commission_rate: float = 0.0
+>     margin_requirement: float = 0.01  # 1% margin
+>     trading_hours: Dict[str, Any] = None
+>     volatility_factor: float = 1.0
+>     liquidity_tier: int = 1  # 1 = highest liquidity, 5 = lowest
+  
+  
+> @dataclass
+> class MarketData:
+>     """Real-time market data structure."""
+  
+>     symbol: str
+>     bid: float
+>     ask: float
+>     spread: float
+>     volume: float
+>     timestamp: datetime
+>     high_24h: Optional[float] = None
+>     low_24h: Optional[float] = None
+>     change_24h: Optional[float] = None
+>     change_pct_24h: Optional[float] = None
+  
+  
+> @dataclass
+> class OrderExecution:
+>     """Order execution details."""
+  
+>     symbol: str
+>     order_type: str  # market, limit, stop
+>     side: str  # buy, sell
+>     quantity: float
+>     price: Optional[float]
+>     stop_loss: Optional[float]
+>     take_profit: Optional[float]
+>     execution_price: Optional[float] = None
+>     commission: Optional[float] = None
+>     status: str = "pending"
+>     execution_time: Optional[datetime] = None
+  
+  
+> class MultiAssetManager:
+>     """
+>     Multi-Asset Trading Manager.
+  
+>     Provides unified trading capabilities across different asset classes
+>     with asset-specific pricing, execution logic, and risk management.
+>     """
+  
+>     def __init__(self, db: Session):
+>         self.db = db
+>         self.supported_assets = self._initialize_asset_definitions()
+>         self.market_sessions = self._initialize_market_sessions()
+  
+>     def _initialize_asset_definitions(self) -> Dict[str, AssetInfo]:
+>         """Initialize supported asset definitions."""
+>         assets = {}
+  
+          # Major Forex Pairs
+>         forex_pairs = [
+>             (
+>                 "EUR/USD",
+>                 "Euro/US Dollar",
+>                 "FOREX",
+>                 "OTC",
+>                 "EUR",
+>                 "USD",
+>                 100000,
+>                 0.01,
+>                 100,
+>                 0.0001,
+>                 0.00015,
+>                 0.0,
+>                 0.033),
+>             (
+>                 "GBP/USD",
+>                 "British Pound/US Dollar",
+>                 "FOREX",
+>                 "OTC",
+>                 "GBP",
+>                 "USD",
+>                 100000,
+>                 0.01,
+>                 100,
+>                 0.0001,
+>                 0.0002,
+>                 0.0,
+>                 0.033),
+>             (
+>                 "USD/JPY",
+>                 "US Dollar/Japanese Yen",
+>                 "FOREX",
+>                 "OTC",
+>                 "USD",
+>                 "JPY",
+>                 100000,
+>                 0.01,
+>                 100,
+>                 0.01,
+>                 0.0015,
+>                 0.0,
+>                 0.033),
+>             (
+>                 "AUD/USD",
+>                 "Australian Dollar/US Dollar",
+>                 "FOREX",
+>                 "OTC",
+>                 "AUD",
+>                 "USD",
+>                 100000,
+>                 0.01,
+>                 100,
+>                 0.0001,
+>                 0.0002,
+>                 0.0,
+>                 0.033),
+>             (
+>                 "USD/CAD",
+>                 "US Dollar/Canadian Dollar",
+>                 "FOREX",
+>                 "OTC",
+>                 "USD",
+>                 "CAD",
+>                 100000,
+>                 0.01,
+>                 100,
+>                 0.0001,
+>                 0.00025,
+>                 0.0,
+>                 0.033)
+>         ]
+          
+>         for (
+>             symbol,
+>             name,
+>             exchange,
+>             market,
+>             base,
+>             quote,
+>             contract,
+>             min_lot,
+>             max_lot,
+>             pip,
+>             spread,
+>             comm,
+>             margin) in forex_pairs:
+>             assets[symbol] = AssetInfo(
+>                 symbol=symbol,
+>                 name=name,
+>                 asset_class=AssetClass.FOREX,
+>                 exchange=exchange,
+>                 base_currency=base,
+>                 quote_currency=quote,
+>                 contract_size=contract,
+>                 min_lot_size=min_lot,
+>                 max_lot_size=max_lot,
+>                 pip_value=pip,
+>                 spread_typical=spread,
+>                 commission_rate=comm,
+>                 margin_requirement=margin,
+>                 volatility_factor=1.0,
+>                 liquidity_tier=1)
+  
+          # Major Stocks
+>         stocks = [
+>             (
+>                 "AAPL",
+>                 "Apple Inc.",
+>                 "NASDAQ",
+>                 "USD",
+>                 1,
+>                 1,
+>                 10000,
+>                 0.01,
+>                 0.0,
+>                 0.20,
+>                 1.2,
+>                 1),
+>             (
+>                 "MSFT",
+>                 "Microsoft Corporation",
+>                 "NASDAQ",
+>                 "USD",
+>                 1,
+>                 1,
+>                 10000,
+>                 0.01,
+>                 0.0,
+>                 0.20,
+>                 1.1,
+>                 1),
+>             (
+>                 "GOOGL",
+>                 "Alphabet Inc.",
+>                 "NASDAQ",
+>                 "USD",
+>                 1,
+>                 1,
+>                 10000,
+>                 0.01,
+>                 0.0,
+>                 0.20,
+>                 1.3,
+>                 1),
+>             (
+>                 "AMZN",
+>                 "Amazon.com Inc.",
+>                 "NASDAQ",
+>                 "USD",
+>                 1,
+>                 1,
+>                 10000,
+>                 0.01,
+>                 0.0,
+>                 0.20,
+>                 1.4,
+>                 1),
+>             (
+>                 "TSLA",
+>                 "Tesla Inc.",
+>                 "NASDAQ",
+>                 "USD",
+>                 1,
+>                 1,
+>                 10000,
+>                 0.01,
+>                 0.0,
+>                 0.20,
+>                 2.0,
+>                 2),
+>             (
+>                 "NVDA",
+>                 "NVIDIA Corporation",
+>                 "NASDAQ",
+>                 "USD",
+>                 1,
+>                 1,
+>                 10000,
+>                 0.01,
+>                 0.0,
+>                 0.20,
+>                 1.8,
+>                 1),
+>             (
+>                 "SPY",
+>                 "SPDR S&P 500 ETF",
+>                 "NYSE",
+>                 "USD",
+>                 1,
+>                 1,
+>                 10000,
+>                 0.01,
+>                 0.0,
+>                 0.20,
+>                 0.8,
+>                 1)]
+  
+>         for (
+>             symbol,
+>             name,
+>             exchange,
+>             currency,
+>             contract,
+>             min_lot,
+>             max_lot,
+>             pip,
+>             comm,
+>             margin,
+>             vol_factor,
+>             liquidity) in stocks:
+>             assets[symbol] = AssetInfo(
+>                 symbol=symbol,
+>                 name=name,
+>                 asset_class=AssetClass.STOCKS,
+>                 exchange=exchange,
+>                 base_currency=currency,
+>                 contract_size=contract,
+>                 min_lot_size=min_lot,
+>                 max_lot_size=max_lot,
+>                 pip_value=pip,
+>                 commission_rate=comm,
+>                 margin_requirement=margin,
+>                 volatility_factor=vol_factor,
+>                 liquidity_tier=liquidity)
+  
+          # Major Cryptocurrencies
+>         cryptos = [
+>             (
+>                 "BTC/USD",
+>                 "Bitcoin",
+>                 "CRYPTO",
+>                 "USD",
+>                 1,
+>                 0.001,
+>                 100,
+>                 0.01,
+>                 0.001,
+>                 0.50,
+>                 1.5,
+>                 1),
+>             (
+>                 "ETH/USD",
+>                 "Ethereum",
+>                 "CRYPTO",
+>                 "USD",
+>                 1,
+>                 0.01,
+>                 1000,
+>                 0.01,
+>                 0.001,
+>                 0.50,
+>                 1.6,
+>                 1),
+>             (
+>                 "ADA/USD",
+>                 "Cardano",
+>                 "CRYPTO",
+>                 "USD",
+>                 1,
+>                 1,
+>                 100000,
+>                 0.0001,
+>                 0.001,
+>                 0.50,
+>                 2.2,
+>                 2),
+>             (
+>                 "SOL/USD",
+>                 "Solana",
+>                 "CRYPTO",
+>                 "USD",
+>                 1,
+>                 0.1,
+>                 10000,
+>                 0.001,
+>                 0.001,
+>                 0.50,
+>                 2.5,
+>                 2),
+>             (
+>                 "DOGE/USD",
+>                 "Dogecoin",
+>                 "CRYPTO",
+>                 "USD",
+>                 1,
+>                 1,
+>                 1000000,
+>                 0.00001,
+>                 0.001,
+>                 0.50,
+>                 3.0,
+>                 3)]
+  
+>         for (
+>             symbol,
+>             name,
+>             exchange,
+>             currency,
+>             contract,
+>             min_lot,
+>             max_lot,
+>             pip,
+>             comm,
+>             margin,
+>             vol_factor,
+>             liquidity) in cryptos:
+>             assets[symbol] = AssetInfo(
+>                 symbol=symbol,
+>                 name=name,
+>                 asset_class=AssetClass.CRYPTO,
+>                 exchange=exchange,
+>                 base_currency=currency,
+>                 contract_size=contract,
+>                 min_lot_size=min_lot,
+>                 max_lot_size=max_lot,
+>                 pip_value=pip,
+>                 commission_rate=comm,
+>                 margin_requirement=margin,
+>                 volatility_factor=vol_factor,
+>                 liquidity_tier=liquidity)
+  
+          # Major Commodities
+>         commodities = [
+>             (
+>                 "GOLD",
+>                 "Gold Spot",
+>                 "COMEX",
+>                 "USD",
+>                 100,
+>                 0.1,
+>                 1000,
+>                 0.01,
+>                 0.0,
+>                 0.05,
+>                 1.2,
+>                 1),
+>             (
+>                 "SILVER",
+>                 "Silver Spot",
+>                 "COMEX",
+>                 "USD",
+>                 5000,
+>                 1,
+>                 10000,
+>                 0.001,
+>                 0.0,
+>                 0.05,
+>                 1.8,
+>                 2),
+>             (
+>                 "CRUDE",
+>                 "Crude Oil WTI",
+>                 "NYMEX",
+>                 "USD",
+>                 1000,
+>                 0.1,
+>                 1000,
+>                 0.01,
+>                 0.0,
+>                 0.10,
+>                 2.0,
+>                 1),
+>             (
+>                 "NATGAS",
+>                 "Natural Gas",
+>                 "NYMEX",
+>                 "USD",
+>                 10000,
+>                 0.1,
+>                 1000,
+>                 0.001,
+>                 0.0,
+>                 0.10,
+>                 2.5,
+>                 2),
+>             (
+>                 "WHEAT",
+>                 "Wheat Futures",
+>                 "CBOT",
+>                 "USD",
+>                 5000,
+>                 1,
+>                 1000,
+>                 0.25,
+>                 2.5,
+>                 0.10,
+>                 1.5,
+>                 3)]
+  
+>         for (
+>             symbol,
+>             name,
+>             exchange,
+>             currency,
+>             contract,
+>             min_lot,
+>             max_lot,
+>             pip,
+>             comm,
+>             margin,
+>             vol_factor,
+>             liquidity) in commodities:
+>             assets[symbol] = AssetInfo(
+>                 symbol=symbol,
+>                 name=name,
+>                 asset_class=AssetClass.COMMODITIES,
+>                 exchange=exchange,
+>                 base_currency=currency,
+>                 contract_size=contract,
+>                 min_lot_size=min_lot,
+>                 max_lot_size=max_lot,
+>                 pip_value=pip,
+>                 commission_rate=comm,
+>                 margin_requirement=margin,
+>                 volatility_factor=vol_factor,
+>                 liquidity_tier=liquidity)
+  
+>         return assets
+  
+>     def _initialize_market_sessions(self) -> Dict[MarketSession, Dict[str, Any]]:
+>         """Initialize market session information."""
+>         return {
+>             MarketSession.LONDON: {
+>                 "open": "08:00",
+>                 "close": "17:00",
+>                 "timezone": "GMT",
+>                 "active_assets": [AssetClass.FOREX, AssetClass.COMMODITIES]},
+>             MarketSession.NEW_YORK: {
+>                 "open": "13:30",
+>                 "close": "20:00",
+>                 "timezone": "GMT",
+>                 "active_assets": [
+>                     AssetClass.FOREX,
+>                     AssetClass.STOCKS,
+>                     AssetClass.COMMODITIES]},
+>             MarketSession.TOKYO: {
+>                 "open": "00:00",
+>                 "close": "09:00",
+>                 "timezone": "GMT",
+>                 "active_assets": [AssetClass.FOREX]},
+>             MarketSession.CRYPTO_24_7: {
+>                 "open": "00:00",
+>                 "close": "23:59",
+>                 "timezone": "GMT",
+>                 "active_assets": [AssetClass.CRYPTO]}
+>         }
+  
+>     def get_supported_assets(
+>         self, asset_class: Optional[AssetClass] = None) -> List[AssetInfo]:
+>         """Get list of supported assets, optionally filtered by asset class."""
+!         if asset_class:
+!             return [
+!                 asset
+!                 for asset in self.supported_assets.values()
+!                 if asset.asset_class == asset_class]
+!         return list(self.supported_assets.values())
+  
+>     def get_asset_info(self, symbol: str) -> Optional[AssetInfo]:
+>         """Get asset information for a specific symbol."""
+!         return self.supported_assets.get(symbol)
+  
+>     def is_market_open(
+>         self, symbol: str, current_time: Optional[datetime] = None) -> bool:
+>         """Check if the market is open for a specific asset."""
+!         if current_time is None:
+!             current_time = datetime.now(timezone.utc)
+  
+!         asset_info = self.get_asset_info(symbol)
+!         if not asset_info:
+!             return False
+  
+          # Crypto markets are always open
+!         if asset_info.asset_class == AssetClass.CRYPTO:
+!             return True
+  
+          # For other assets, check market hours (simplified implementation)
+!         current_hour = current_time.hour
+  
+!         if asset_info.asset_class == AssetClass.FOREX:
+              # Forex is open 24/5 (closed weekends)
+!             weekday = current_time.weekday()
+!             if weekday >= 5:  # Saturday or Sunday
+!                 return False
+!             if weekday == 4 and current_hour >= 22:  # Friday after 10 PM GMT
+!                 return False
+!             if weekday == 0 and current_hour < 22:  # Monday before 10 PM GMT
+!                 return False
+!             return True
+  
+!         elif asset_info.asset_class == AssetClass.STOCKS:
+              # US stock market hours (simplified)
+!             weekday = current_time.weekday()
+!             if weekday >= 5:  # Weekend
+!                 return False
+!             return 14 <= current_hour <= 21  # 9:30 AM - 4:00 PM EST (in GMT)
+  
+!         elif asset_info.asset_class == AssetClass.COMMODITIES:
+              # Commodity trading hours vary, simplified implementation
+!             weekday = current_time.weekday()
+!             if weekday >= 5:
+!                 return False
+!             return 1 <= current_hour <= 22  # Extended hours for commodities
+  
+!         return True
+  
+>     def calculate_position_value(
+>         self, symbol: str, quantity: float, price: float) -> float:
+>         """Calculate the total value of a position."""
+!         asset_info = self.get_asset_info(symbol)
+!         if not asset_info:
+!             raise ValueError(f"Unsupported asset: {symbol}")
+  
+!         if asset_info.asset_class == AssetClass.FOREX:
+              # For forex, position value = quantity * contract_size * price
+!             return quantity * asset_info.contract_size * price
+  
+!         elif asset_info.asset_class == AssetClass.STOCKS:
+              # For stocks, position value = quantity * price
+!             return quantity * price
+  
+!         elif asset_info.asset_class == AssetClass.CRYPTO:
+              # For crypto, position value = quantity * price
+!             return quantity * price
+  
+!         elif asset_info.asset_class == AssetClass.COMMODITIES:
+              # For commodities, position value = quantity * contract_size * price
+!             return quantity * asset_info.contract_size * price
+  
+!         return quantity * price
+  
+>     def calculate_margin_requirement(
+>         self, symbol: str, quantity: float, price: float) -> float:
+>         """Calculate margin requirement for a position."""
+!         asset_info = self.get_asset_info(symbol)
+!         if not asset_info:
+!             raise ValueError(f"Unsupported asset: {symbol}")
+  
+!         position_value = self.calculate_position_value(symbol, quantity, price)
+!         return position_value * asset_info.margin_requirement
+  
+>     def calculate_commission(self, symbol: str, quantity: float, price: float) -> float:
+>         """Calculate commission for a trade."""
+!         asset_info = self.get_asset_info(symbol)
+!         if not asset_info:
+!             raise ValueError(f"Unsupported asset: {symbol}")
+  
+!         if asset_info.asset_class == AssetClass.STOCKS:
+              # Stock commission: typically per share or percentage
+!             return max(1.0, quantity * 0.005)  # $0.005 per share, min $1
+  
+!         elif asset_info.asset_class == AssetClass.CRYPTO:
+              # Crypto commission: percentage of trade value
+!             trade_value = quantity * price
+!             return trade_value * asset_info.commission_rate
+  
+!         elif asset_info.asset_class == AssetClass.FOREX:
+              # Forex: typically spread-based, no explicit commission
+!             return 0.0
+  
+!         elif asset_info.asset_class == AssetClass.COMMODITIES:
+              # Commodity commission: fixed per contract
+!             return quantity * 2.5  # $2.50 per contract
+  
+!         return 0.0
+  
+>     def validate_order_parameters(
+>         self, symbol: str, quantity: float, price: Optional[float] = None
+>     ) -> Tuple[bool, List[str]]:
+>         """Validate order parameters for an asset."""
+!         errors = []
+!         asset_info = self.get_asset_info(symbol)
+!         if not asset_info:
+!             errors.append(f"Unsupported asset: {symbol}")
+!             return False, errors
+  
+          # Check market hours
+!         if not self.is_market_open(symbol):
+!             errors.append(f"Market is closed for {symbol}")
+  
+          # Check quantity limits
+!         if quantity < asset_info.min_lot_size:
+!             errors.append(
+!                 f"Quantity {quantity} below minimum lot size {asset_info.min_lot_size}")
+  
+!         if quantity > asset_info.max_lot_size:
+!             errors.append(
+!                 f"Quantity {quantity} exceeds maximum lot size {asset_info.max_lot_size}")
+  
+          # Check price validity for limit orders
+!         if price is not None and price <= 0:
+!             errors.append("Price must be positive")
+  
+          # Asset-specific validations
+!         if asset_info.asset_class == AssetClass.FOREX:
+              # Check lot size increments for forex
+!             if (quantity / asset_info.min_lot_size) != int(
+!                 quantity / asset_info.min_lot_size):
+!                 errors.append(
+!                     f"Forex quantity must be in increments of {asset_info.min_lot_size}")
+  
+!         elif asset_info.asset_class == AssetClass.STOCKS:
+              # Check for whole shares
+!             if quantity != int(quantity):
+!                 errors.append("Stock quantity must be whole shares")
+  
+!         return len(errors) == 0, errors
+  
+>     def get_market_data(self, symbol: str) -> Optional[MarketData]:
+>         """Get current market data for an asset (mock implementation)."""
+!         asset_info = self.get_asset_info(symbol)
+!         if not asset_info:
+!             return None
+  
+          # Mock market data generation
+!         base_price = self._get_mock_base_price(symbol)
+!         spread = asset_info.spread_typical
+  
+!         bid = base_price - (spread / 2)
+!         ask = base_price + (spread / 2)
+  
+!         return MarketData(
+!             symbol=symbol,
+!             bid=bid,
+!             ask=ask,
+!             spread=spread,
+!             volume=random.uniform(1000, 100000),
+!             timestamp=datetime.now(timezone.utc),
+!             high_24h=base_price * 1.02,
+!             low_24h=base_price * 0.98,
+!             change_24h=base_price * random.uniform(-0.02, 0.02),
+!             change_pct_24h=random.uniform(-2.0, 2.0))
+  
+>     def _get_mock_base_price(self, symbol: str) -> float:
+>         """Get mock base price for an asset."""
+!         mock_prices = {
+              # Forex
+!             "EUR/USD": 1.0850,
+!             "GBP/USD": 1.2650,
+!             "USD/JPY": 149.50,
+!             "AUD/USD": 0.6750,
+!             "USD/CAD": 1.3520,
+              # Stocks
+!             "AAPL": 175.50,
+!             "MSFT": 385.25,
+!             "GOOGL": 135.75,
+!             "AMZN": 155.80,
+!             "TSLA": 210.25,
+!             "NVDA": 485.60,
+!             "SPY": 445.75,
+              # Crypto
+!             "BTC/USD": 43250.00,
+!             "ETH/USD": 2650.75,
+!             "ADA/USD": 0.4850,
+!             "SOL/USD": 65.25,
+!             "DOGE/USD": 0.0875,
+              # Commodities
+!             "GOLD": 2025.50,
+!             "SILVER": 24.75,
+!             "CRUDE": 78.25,
+!             "NATGAS": 2.85,
+!             "WHEAT": 585.25}
+  
+!         return mock_prices.get(symbol, 100.0)
+  
+>     def execute_order(self, order: OrderExecution) -> OrderExecution:
+>         """Execute a trading order (mock implementation)."""
+          # Validate order
+>         is_valid, errors = self.validate_order_parameters(
+>             order.symbol, order.quantity, order.price)
+>         if not is_valid:
+>             order.status = "rejected"
+>             return order
+  
+          # Get current market data
+>         market_data = self.get_market_data(order.symbol)
+>         if not market_data:
+>             order.status = "rejected"
+>             return order
+  
+          # Execute based on order type
+>         if order.order_type == "market":
+>             if order.side == "buy":
+>                 order.execution_price = market_data.ask
+>             else:
+>                 order.execution_price = market_data.bid
+>         elif order.order_type == "limit":
+              # For limit orders, use the specified price
+>             order.execution_price = order.price
+  
+          # Calculate commission
+>         order.commission = self.calculate_commission(
+>             order.symbol, order.quantity, order.execution_price)
+  
+          # Mark as executed
+>         order.status = "executed"
+>         order.execution_time = datetime.now(timezone.utc)
+  
+>         return order
+  
+>     def get_asset_correlations(
+>         self, symbols: List[str], lookback_days: int = 30) -> Dict[str, Dict[str, float]]:
+>         """Calculate correlation matrix for assets (mock implementation)."""
+          # In real implementation, this would calculate actual correlations
+          # using historical price data
+  
+!         correlations = {}
+!         for i, symbol1 in enumerate(symbols):
+!             correlations[symbol1] = {}
+!             for j, symbol2 in enumerate(symbols):
+!                 if symbol1 == symbol2:
+!                     correlations[symbol1][symbol2] = 1.0
+!                 else:
+                      # Mock correlation based on asset classes
+!                     asset1 = self.get_asset_info(symbol1)
+!                     asset2 = self.get_asset_info(symbol2)
+!                     if asset1 and asset2:
+!                         if asset1.asset_class == asset2.asset_class:
+                              # Same asset class: moderate to high correlation
+!                             correlations[symbol1][symbol2] = 0.3 + abs(i - j) * 0.1
+!                         else:
+                              # Different asset classes: low to moderate correlation
+!                             correlations[symbol1][symbol2] = 0.1 + abs(i - j) * 0.05
+!                     else:
+!                         correlations[symbol1][symbol2] = 0.0
+  
+!         return correlations
+  
+>     def get_portfolio_exposure_by_asset_class(
+>         self, user_id: str) -> Dict[AssetClass, float]:
+>         """Calculate portfolio exposure by asset class."""
+          # Get user's active positions (mock implementation)
+!         exposures = {asset_class: 0.0 for asset_class in [
+!             AssetClass.FOREX, AssetClass.STOCKS, AssetClass.CRYPTO, 
+!             AssetClass.COMMODITIES, AssetClass.INDICES, AssetClass.BONDS]}
+  
+          # In real implementation, would query actual positions
+          # For now, return mock data
+!         exposures[AssetClass.FOREX] = 45000.0
+!         exposures[AssetClass.STOCKS] = 25000.0
+!         exposures[AssetClass.CRYPTO] = 15000.0
+!         exposures[AssetClass.COMMODITIES] = 10000.0
+  
+!         return exposures
+  
+>     def suggest_asset_allocation(
+>         self, risk_profile: str, portfolio_value: float) -> Dict[AssetClass, float]:
+>         """Suggest optimal asset allocation based on risk profile."""
+!         allocations = {}
+  
+!         if risk_profile.lower() == "conservative":
+!             allocations = {
+!                 AssetClass.FOREX: 0.40,
+!                 AssetClass.STOCKS: 0.35,
+!                 AssetClass.BONDS: 0.15,
+!                 AssetClass.COMMODITIES: 0.05,
+!                 AssetClass.CRYPTO: 0.05}
+!         elif risk_profile.lower() == "moderate":
+!             allocations = {
+!                 AssetClass.FOREX: 0.35,
+!                 AssetClass.STOCKS: 0.40,
+!                 AssetClass.COMMODITIES: 0.10,
+!                 AssetClass.CRYPTO: 0.10,
+!                 AssetClass.BONDS: 0.05}
+!         elif risk_profile.lower() == "aggressive":
+!             allocations = {
+!                 AssetClass.STOCKS: 0.40,
+!                 AssetClass.FOREX: 0.25,
+!                 AssetClass.CRYPTO: 0.20,
+!                 AssetClass.COMMODITIES: 0.15,
+!                 AssetClass.BONDS: 0.00}
+!         else:
+              # Balanced allocation
+!             allocations = {
+!                 AssetClass.FOREX: 0.30,
+!                 AssetClass.STOCKS: 0.35,
+!                 AssetClass.CRYPTO: 0.15,
+!                 AssetClass.COMMODITIES: 0.10,
+!                 AssetClass.BONDS: 0.10}
+  
+          # Convert percentages to dollar amounts
+!         return {
+!             asset_class: portfolio_value * percentage
+!             for asset_class, percentage in allocations.items()}
+  
+  
+> class MultiAssetAPI:
+>     """API wrapper for Multi-Asset Manager functionality."""
+  
+>     @staticmethod
+>     def get_manager(db: Session = None) -> MultiAssetManager:
+>         """Get multi-asset manager instance."""
+!         if db is None:
+!             from src.database.database import get_db_session
+!             db = next(get_db_session())
+!         return MultiAssetManager(db)
+  
+>     @staticmethod
+>     def get_tradeable_assets(asset_class: str = None) -> Dict[str, Any]:
+>         """Get list of tradeable assets."""
+!         manager = MultiAssetAPI.get_manager()
+  
+!         asset_class_enum = None
+!         if asset_class:
+!             try:
+!                 asset_class_enum = getattr(AssetClass, asset_class.upper())
+!             except AttributeError:
+!                 pass
+  
+!         assets = manager.get_supported_assets(asset_class_enum)
+  
+!         return {
+!             "assets": [
+!                 {
+!                     "symbol": asset.symbol,
+!                     "name": asset.name,
+!                     "asset_class": asset.asset_class,
+!                     "exchange": asset.exchange,
+!                     "base_currency": asset.base_currency,
+!                     "quote_currency": asset.quote_currency,
+!                     "min_lot_size": asset.min_lot_size,
+!                     "max_lot_size": asset.max_lot_size,
+!                     "margin_requirement": asset.margin_requirement,
+!                     "volatility_factor": asset.volatility_factor,
+!                     "liquidity_tier": asset.liquidity_tier}
+!                 for asset in assets],
+!             "total_assets": len(assets),
+!             "asset_classes": list(set(asset.asset_class for asset in assets))}
+  
+>     @staticmethod
+>     def validate_trade_request(
+>         symbol: str, quantity: float, price: float = None) -> Dict[str, Any]:
+>         """Validate a trade request across asset classes."""
+!         manager = MultiAssetAPI.get_manager()
+  
+!         is_valid, errors = manager.validate_order_parameters(symbol, quantity, price)
+  
+!         result = {"valid": is_valid, "errors": errors, "warnings": []}
+  
+!         if is_valid:
+!             asset_info = manager.get_asset_info(symbol)
+!             market_data = manager.get_market_data(symbol)
+  
+!             if market_data:
+!                 estimated_value = manager.calculate_position_value(
+!                     symbol, quantity, market_data.ask)
+!                 margin_required = manager.calculate_margin_requirement(
+!                     symbol, quantity, market_data.ask)
+!                 commission = manager.calculate_commission(
+!                     symbol, quantity, market_data.ask)
+  
+!                 result.update({
+!                     "estimated_value": estimated_value,
+!                     "margin_required": margin_required,
+!                     "commission": commission,
+!                     "market_data": {
+!                         "bid": market_data.bid,
+!                         "ask": market_data.ask,
+!                         "spread": market_data.spread}
+!                 })
+  
+                  # Add warnings
+!                 if not manager.is_market_open(symbol):
+!                     result["warnings"].append("Market is currently closed")
+  
+!                 if asset_info and asset_info.liquidity_tier > 2:
+!                     result["warnings"].append(
+!                         "Low liquidity asset - wider spreads expected")
+  
+!         return result
+  
+  
+  # Export classes
+> __all__ = [
+>     "MultiAssetManager",
+>     "MultiAssetAPI",
+>     "AssetClass",
+>     "MarketSession",
+>     "AssetInfo",
+>     "MarketData",
+>     "OrderExecution"]

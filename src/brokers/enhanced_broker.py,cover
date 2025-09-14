@@ -1,0 +1,478 @@
+> """
+> Enhanced broker management system with monitoring, smart routing, and position reconciliation.
+> """
+  
+> from dataclasses import dataclass
+> from datetime import datetime, timezone
+> from typing import Dict, List, Any, Optional, Callable
+> import asyncio
+> import logging
+  
+> logger = logging.getLogger(__name__)
+  
+  
+> @dataclass
+> class BrokerHealth:
+>     """Broker health status"""
+>     broker_name: str
+>     is_healthy: bool
+>     last_check: datetime
+>     latency_ms: float
+>     error_count: int
+>     success_rate: float
+>     message: str = ""
+  
+  
+> @dataclass
+> class ExecutionMetrics:
+>     """Track execution performance"""
+>     total_orders: int = 0
+>     successful_orders: int = 0
+>     failed_orders: int = 0
+>     total_volume: float = 0
+>     total_commission: float = 0
+>     avg_fill_time_ms: float = 0
+>     slippage_bps: float = 0  # basis points
+  
+  
+> class BrokerConnectionMonitor:
+>     """Monitors broker connection health and performance"""
+  
+>     def __init__(self):
+>         self.health_checks: Dict[str, BrokerHealth] = {}
+>         self.execution_metrics: Dict[str, ExecutionMetrics] = {}
+>         self.alert_callbacks: List[Callable] = []
+>         self.check_interval = 30  # seconds
+>         self.is_monitoring = False
+>         self._monitor_task = None
+  
+>     async def start_monitoring(self, brokers: Dict[str, Any]):
+>         """Start monitoring broker connections"""
+!         self.is_monitoring = True
+!         self._monitor_task = asyncio.create_task(self._monitor_loop(brokers))
+!         logger.info("Broker monitoring started")
+  
+>     async def stop_monitoring(self):
+>         """Stop monitoring"""
+!         self.is_monitoring = False
+!         if self._monitor_task:
+!             self._monitor_task.cancel()
+!         logger.info("Broker monitoring stopped")
+  
+>     async def _monitor_loop(self, brokers: Dict[str, Any]):
+>         """Main monitoring loop"""
+!         while self.is_monitoring:
+!             try:
+!                 for name, broker in brokers.items():
+!                     health = await self._check_broker_health(name, broker)
+!                     self.health_checks[name] = health
+  
+                      # Alert if unhealthy
+!                     if not health.is_healthy:
+!                         await self._send_alert(health)
+  
+!                 await asyncio.sleep(self.check_interval)
+  
+!             except asyncio.CancelledError:
+!                 break
+!             except Exception as e:
+!                 logger.error(f"Error in monitoring loop: {e}")
+!                 await asyncio.sleep(5)
+  
+>     async def _check_broker_health(self, name: str, broker: Any) -> BrokerHealth:
+>         """Check health of a specific broker"""
+!         start_time = datetime.now(timezone.utc)
+  
+!         try:
+              # Check if connected
+!             if not hasattr(broker, "connected") or not broker.connected:
+!                 return BrokerHealth(
+!                     broker_name=name,
+!                     is_healthy=False,
+!                     last_check=datetime.now(timezone.utc),
+!                     latency_ms=0,
+!                     error_count=self.execution_metrics.get(
+!                         name, ExecutionMetrics()).failed_orders,
+!                     success_rate=0,
+!                     message="Not connected")
+  
+              # Ping test (get account info)
+!             account = await broker.get_account()
+!             latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+  
+!             if account:
+!                 metrics = self.execution_metrics.get(name, ExecutionMetrics())
+!                 success_rate = (
+!                     metrics.successful_orders / max(metrics.total_orders, 1)) * 100
+  
+!                 return BrokerHealth(
+!                     broker_name=name,
+!                     is_healthy=True,
+!                     last_check=datetime.now(timezone.utc),
+!                     latency_ms=latency_ms,
+!                     error_count=metrics.failed_orders,
+!                     success_rate=success_rate,
+!                     message="Healthy")
+!             else:
+!                 return BrokerHealth(
+!                     broker_name=name,
+!                     is_healthy=False,
+!                     last_check=datetime.now(timezone.utc),
+!                     latency_ms=latency_ms,
+!                     error_count=0,
+!                     success_rate=0,
+!                     message="Account info unavailable")
+  
+!         except Exception as e:
+!             return BrokerHealth(
+!                 broker_name=name,
+!                 is_healthy=False,
+!                 last_check=datetime.now(timezone.utc),
+!                 latency_ms=0,
+!                 error_count=0,
+!                 success_rate=0,
+!                 message=str(e))
+  
+>     async def _send_alert(self, health: BrokerHealth):
+>         """Send alert for unhealthy broker"""
+!         alert_message = f"⚠️ Broker {health.broker_name} is unhealthy: {health.message}"
+!         logger.warning(alert_message)
+  
+          # Call alert callbacks
+!         for callback in self.alert_callbacks:
+!             try:
+!                 await callback(health)
+!             except Exception as e:
+!                 logger.error(f"Error in alert callback: {e}")
+  
+>     def update_execution_metrics(
+>         self, broker_name: str, order, success: bool, fill_time_ms: float = 0):
+>         """Update execution metrics for a broker"""
+>         if broker_name not in self.execution_metrics:
+>             self.execution_metrics[broker_name] = ExecutionMetrics()
+  
+>         metrics = self.execution_metrics[broker_name]
+>         metrics.total_orders += 1
+  
+>         if success:
+>             metrics.successful_orders += 1
+>             if hasattr(order, "quantity") and hasattr(order, "price"):
+>                 metrics.total_volume += order.quantity * (order.price or 100)
+>             if hasattr(order, "commission"):
+>                 metrics.total_commission += order.commission
+  
+              # Update average fill time
+>             if fill_time_ms > 0:
+>                 if metrics.avg_fill_time_ms == 0:
+>                     metrics.avg_fill_time_ms = fill_time_ms
+>                 else:
+                      # Moving average
+>                     metrics.avg_fill_time_ms = (metrics.avg_fill_time_ms * 0.9) + (
+>                         fill_time_ms * 0.1)
+>         else:
+>             metrics.failed_orders += 1
+  
+>     def get_best_broker(self, brokers: List[str]) -> Optional[str]:
+>         """Get the best performing broker from a list"""
+!         best_broker = None
+!         best_score = -1
+  
+!         for broker_name in brokers:
+!             if broker_name in self.health_checks:
+!                 health = self.health_checks[broker_name]
+!                 if health.is_healthy:
+                      # Score based on success rate and latency
+!                     score = health.success_rate - (
+!                         health.latency_ms / 1000)  # Penalize high latency
+!                     if score > best_score:
+!                         best_score = score
+!                         best_broker = broker_name
+  
+!         return best_broker
+  
+  
+> class SmartOrderRouter:
+>     """Intelligent order routing across multiple brokers"""
+  
+>     def __init__(self, broker_manager, monitor: BrokerConnectionMonitor):
+!         self.broker_manager = broker_manager
+!         self.monitor = monitor
+!         self.routing_rules: Dict[str, Any] = {}
+!         self.preferred_brokers: List[str] = ["IB", "Alpaca", "Paper"]
+  
+>     async def route_order(self, order) -> tuple[str, Any]:
+>         """
+>         Route order to the best available broker
+  
+>         Returns:
+>             (broker_name, executed_order)
+>         """
+          # Get healthy brokers
+!         available_brokers = []
+!         for broker_name in self.preferred_brokers:
+!             if broker_name in self.monitor.health_checks:
+!                 health = self.monitor.health_checks[broker_name]
+!                 if health.is_healthy:
+!                     available_brokers.append(broker_name)
+  
+!         if not available_brokers:
+!             logger.error("No healthy brokers available")
+              # Fall back to paper trading
+!             available_brokers = ["Paper"]
+  
+          # Select best broker
+!         best_broker = self.monitor.get_best_broker(available_brokers)
+  
+!         if not best_broker:
+!             best_broker = available_brokers[0]  # Use first available
+  
+!         logger.info(f"Routing order to {best_broker}")
+  
+          # Connect and execute
+!         start_time = datetime.now(timezone.utc)
+  
+!         try:
+!             await self.broker_manager.connect_broker(best_broker)
+!             executed_order = await self.broker_manager.place_order(order)
+  
+              # Update metrics
+!             fill_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+!             self.monitor.update_execution_metrics(
+!                 best_broker, order, True, fill_time_ms)
+  
+!             return best_broker, executed_order
+  
+!         except Exception as e:
+!             logger.error(f"Failed to route order through {best_broker}: {e}")
+!             self.monitor.update_execution_metrics(best_broker, order, False)
+  
+              # Try failover
+!             for fallback_broker in available_brokers:
+!                 if fallback_broker != best_broker:
+!                     try:
+!                         logger.info(f"Attempting failover to {fallback_broker}")
+!                         await self.broker_manager.connect_broker(fallback_broker)
+!                         executed_order = await self.broker_manager.place_order(order)
+  
+!                         fill_time_ms = (
+!                             datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+!                         self.monitor.update_execution_metrics(
+!                             fallback_broker, order, True, fill_time_ms)
+  
+!                         return fallback_broker, executed_order
+  
+!                     except Exception as e2:
+!                         logger.error(f"Failover to {fallback_broker} failed: {e2}")
+!                         self.monitor.update_execution_metrics(
+!                             fallback_broker, order, False)
+  
+!             raise RuntimeError("All brokers failed to execute order")
+  
+  
+> class PositionReconciliation:
+>     """Reconcile positions across multiple brokers"""
+  
+>     def __init__(self):
+!         self.broker_positions: Dict[str, List[Any]] = {}
+!         self.reconciled_positions: Dict[str, Any] = {}
+!         self.discrepancies: List[Dict[str, Any]] = []
+  
+>     async def reconcile_positions(self, broker_manager) -> Dict[str, Any]:
+>         """Reconcile positions across all connected brokers"""
+!         self.broker_positions.clear()
+!         self.reconciled_positions.clear()
+!         self.discrepancies.clear()
+  
+          # Get positions from each broker
+!         for broker_name, broker in broker_manager.brokers.items():
+!             if broker.connected:
+!                 try:
+!                     positions = await broker.get_positions()
+!                     self.broker_positions[broker_name] = positions
+  
+                      # Aggregate positions by symbol
+!                     for pos in positions:
+!                         symbol = pos.symbol
+!                         if symbol not in self.reconciled_positions:
+!                             self.reconciled_positions[symbol] = {
+!                                 "total_quantity": 0,
+!                                 "avg_entry_price": 0,
+!                                 "total_value": 0,
+!                                 "brokers": []}
+  
+!                         rec_pos = self.reconciled_positions[symbol]
+!                         rec_pos["total_quantity"] += pos.quantity
+!                         rec_pos["total_value"] += pos.quantity * pos.entry_price
+!                         rec_pos["brokers"].append({
+!                             "broker": broker_name,
+!                             "quantity": pos.quantity,
+!                             "entry_price": pos.entry_price})
+  
+!                 except Exception as e:
+!                     logger.error(f"Failed to get positions from {broker_name}: {e}")
+  
+          # Calculate average prices
+!         for symbol, pos_data in self.reconciled_positions.items():
+!             if pos_data["total_quantity"] > 0:
+!                 pos_data["avg_entry_price"] = (
+!                     pos_data["total_value"] / pos_data["total_quantity"])
+  
+!         return self.reconciled_positions
+  
+>     def check_discrepancies(
+>         self, expected_positions: Dict[str, Any]) -> List[Dict[str, Any]]:
+>         """Check for discrepancies between expected and actual positions"""
+!         discrepancies = []
+  
+!         for symbol, expected in expected_positions.items():
+!             actual = self.reconciled_positions.get(symbol)
+!             if not actual:
+!                 discrepancies.append({
+!                     "symbol": symbol,
+!                     "type": "missing",
+!                     "expected_quantity": expected["quantity"],
+!                     "actual_quantity": 0})
+!             elif abs(actual["total_quantity"] - expected["quantity"]) > 0.01:
+!                 discrepancies.append({
+!                     "symbol": symbol,
+!                     "type": "mismatch",
+!                     "expected_quantity": expected["quantity"],
+!                     "actual_quantity": actual["total_quantity"]})
+  
+!         self.discrepancies = discrepancies
+!         return discrepancies
+  
+  
+> class BrokerFeeCalculator:
+>     """Calculate broker fees and commissions"""
+  
+>     def __init__(self):
+!         self.fee_structures = {
+!             "IB": {
+!                 "stock": {
+!                     "per_share": 0.005,
+!                     "minimum": 1.0,
+!                     "maximum": 0.005},  # $0.005/share
+!                 "option": {"per_contract": 0.65, "minimum": 1.0},
+!                 "forex": {"percentage": 0.00002},  # 2 pips
+!             },
+!             "Alpaca": {
+!                 "stock": {"per_share": 0, "minimum": 0, "maximum": 0},  # Free
+!                 "option": {"per_contract": 0, "minimum": 0},
+!                 "forex": {"percentage": 0}
+!             },
+!             "Paper": {
+!                 "stock": {
+!                     "per_share": 0.001,
+!                     "minimum": 0.5,
+!                     "maximum": 0.005},  # Simulated
+!                 "option": {"per_contract": 0.50, "minimum": 0.5},
+!                 "forex": {"percentage": 0.00001}
+!             }
+!         }
+  
+>     def calculate_commission(
+>         self, broker: str, asset_type: str, quantity: float, price: float) -> float:
+>         """Calculate commission for an order"""
+!         if broker not in self.fee_structures:
+!             return 0
+  
+!         fees = self.fee_structures[broker].get(asset_type, {})
+!         if asset_type == "stock":
+!             commission = quantity * fees.get("per_share", 0)
+!             minimum = fees.get("minimum", 0)
+!             maximum = quantity * price * fees.get("maximum", 1)
+!             return max(minimum, min(commission, maximum))
+  
+!         elif asset_type == "option":
+!             commission = quantity * fees.get("per_contract", 0)
+!             minimum = fees.get("minimum", 0)
+!             return max(minimum, commission)
+  
+!         elif asset_type == "forex":
+!             return quantity * price * fees.get("percentage", 0)
+  
+!         return 0
+  
+>     def calculate_slippage(
+>         self, order_type: str, market_volatility: float = 0.5) -> float:
+>         """Estimate slippage in basis points"""
+!         if order_type == "market":
+              # Higher slippage for market orders
+!             return 5 * (1 + market_volatility)  # 5-10 bps
+!         elif order_type == "limit":
+!             return 0  # No slippage for limit orders
+!         elif order_type == "stop":
+              # Significant slippage possible for stops
+!             return 10 * (1 + market_volatility)  # 10-20 bps
+!         return 2  # Default
+  
+  
+  # Enhanced broker manager with monitoring
+> class EnhancedBrokerManager:
+>     """Enhanced broker manager with monitoring and smart routing"""
+  
+>     def __init__(self, base_manager):
+!         self.base_manager = base_manager
+!         self.monitor = BrokerConnectionMonitor()
+!         self.router = SmartOrderRouter(base_manager, self.monitor)
+!         self.reconciliation = PositionReconciliation()
+!         self.fee_calculator = BrokerFeeCalculator()
+!         self.is_initialized = False
+  
+>     async def initialize(self):
+>         """Initialize enhanced broker manager"""
+!         if not self.is_initialized:
+              # Start monitoring
+!             await self.monitor.start_monitoring(self.base_manager.brokers)
+!             self.is_initialized = True
+!             logger.info("Enhanced broker manager initialized")
+  
+>     async def shutdown(self):
+>         """Shutdown enhanced broker manager"""
+!         await self.monitor.stop_monitoring()
+!         self.is_initialized = False
+!         logger.info("Enhanced broker manager shutdown")
+  
+>     async def place_smart_order(self, order) -> tuple[str, Any]:
+>         """Place order with smart routing"""
+!         return await self.router.route_order(order)
+  
+>     async def get_consolidated_positions(self) -> Dict[str, Any]:
+>         """Get consolidated positions across all brokers"""
+!         return await self.reconciliation.reconcile_positions(self.base_manager)
+  
+>     def get_broker_health(self, broker_name: str) -> Optional[BrokerHealth]:
+>         """Get health status of a specific broker"""
+!         return self.monitor.health_checks.get(broker_name)
+  
+>     def get_all_broker_health(self) -> Dict[str, BrokerHealth]:
+>         """Get health status of all brokers"""
+!         return self.monitor.health_checks.copy()
+  
+>     def calculate_order_cost(
+>         self, broker: str, asset_type: str, quantity: float, price: float) -> Dict[str, float]:
+>         """Calculate total cost of an order including fees"""
+!         commission = self.fee_calculator.calculate_commission(
+!             broker, asset_type, quantity, price)
+!         slippage_bps = self.fee_calculator.calculate_slippage("market")
+!         slippage_cost = (quantity * price * slippage_bps) / 10000
+  
+!         return {
+!             "principal": quantity * price,
+!             "commission": commission,
+!             "estimated_slippage": slippage_cost,
+!             "total_cost": quantity * price + commission + slippage_cost}
+  
+  
+  # Export enhanced broker manager
+> def get_enhanced_broker_manager():
+>     """Get enhanced broker manager instance"""
+      # Import here to avoid circular dependencies
+!     try:
+!         from ..brokers.broker_manager import get_broker_manager
+!         base_manager = get_broker_manager()
+!         return EnhancedBrokerManager(base_manager)
+!     except ImportError:
+!         logger.warning("Base broker manager not available")
+!         return None

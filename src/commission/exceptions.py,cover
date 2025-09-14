@@ -1,0 +1,176 @@
+> """Commission-related exception classes."""
+  
+  
+> class CommissionError(Exception):
+>     """Base exception for commission-related errors."""
+>     pass
+  
+  
+> class InvalidCommissionRateError(CommissionError):
+>     """Raised when commission rates are invalid."""
+      
+>     def __init__(self, provider_rate=None, platform_rate=None, message=None):
+>         if message is None:
+>             if provider_rate is not None and platform_rate is not None:
+>                 total = provider_rate + platform_rate
+>                 message = f"Commission rates must total 100%, got provider: {provider_rate}%, platform: {platform_rate}% (total: {total}%)"
+>             else:
+>                 message = "Invalid commission rate configuration"
+  
+>         super().__init__(message)
+>         self.provider_rate = provider_rate
+>         self.platform_rate = platform_rate
+  
+  
+> class CommissionRateNotFoundError(CommissionError):
+>     """Raised when a commission rate is not found."""
+  
+>     def __init__(
+>         self, rate_id=None, revenue_type=None, strategy_id=None, provider_id=None
+>     ):
+!         if rate_id:
+!             message = f"Commission rate '{rate_id}' not found"
+!         elif strategy_id and revenue_type:
+!             message = f"Commission rate for strategy '{strategy_id}' and revenue type '{revenue_type}' not found"
+!         elif provider_id and revenue_type:
+!             message = f"Commission rate for provider '{provider_id}' and revenue type '{revenue_type}' not found"
+!         elif revenue_type:
+!             message = f"Commission rate for revenue type '{revenue_type}' not found"
+!         else:
+!             message = "Commission rate not found"
+  
+!         super().__init__(message)
+!         self.rate_id = rate_id
+!         self.revenue_type = revenue_type
+!         self.strategy_id = strategy_id
+!         self.provider_id = provider_id
+  
+  
+> class TransactionSplitError(CommissionError):
+>     """Raised when transaction split calculation fails."""
+  
+>     def __init__(self, message, transaction_id=None, amount=None):
+!         super().__init__(message)
+!         self.transaction_id = transaction_id
+!         self.amount = amount
+  
+  
+> class BundleAllocationError(CommissionError):
+>     """Raised when bundle allocation calculation fails."""
+  
+>     def __init__(self, message, bundle_id=None, strategies=None):
+!         super().__init__(message)
+!         self.bundle_id = bundle_id
+!         self.strategies = strategies
+  
+  
+> class CommissionOverrideError(CommissionError):
+>     """Raised when commission override operations fail."""
+  
+>     def __init__(self, message, override_id=None, target_id=None):
+!         super().__init__(message)
+!         self.override_id = override_id
+!         self.target_id = target_id
+  
+  
+> class AuditTrailError(CommissionError):
+>     """Raised when audit trail operations fail."""
+  
+>     def __init__(self, message, entity_id=None, action=None):
+!         super().__init__(message)
+!         self.entity_id = entity_id
+!         self.action = action
+  
+  
+> class ReconciliationError(CommissionError):
+>     """Raised when reconciliation operations fail."""
+  
+>     def __init__(self, message, period_start=None, period_end=None):
+!         super().__init__(message)
+!         self.period_start = period_start
+!         self.period_end = period_end
+  
+  
+> class CurrencyNotSupportedError(CommissionError):
+>     """Raised when attempting operations with unsupported currency."""
+  
+>     def __init__(self, currency):
+!         message = f"Currency '{currency}' is not supported for commission calculations"
+!         super().__init__(message)
+!         self.currency = currency
+  
+  
+> class InsufficientFundsError(CommissionError):
+>     """Raised when there are insufficient funds for commission split."""
+  
+>     def __init__(self, available_amount, required_amount, currency="USD"):
+!         message = f"Insufficient funds: available {available_amount} {currency}, required {required_amount} {currency}"
+!         super().__init__(message)
+!         self.available_amount = available_amount
+!         self.required_amount = required_amount
+!         self.currency = currency
+  
+  
+> class CommissionAdjustmentError(CommissionError):
+>     """Raised when commission adjustment operations fail."""
+  
+>     def __init__(self, message, adjustment_id=None, split_id=None):
+!         super().__init__(message)
+!         self.adjustment_id = adjustment_id
+!         self.split_id = split_id
+  
+  
+> class DuplicateCommissionRateError(CommissionError):
+>     """Raised when attempting to create duplicate commission rate."""
+  
+>     def __init__(self, revenue_type=None, strategy_id=None, provider_id=None):
+!         if strategy_id and revenue_type:
+!             message = f"Commission rate for strategy '{strategy_id}' and revenue type '{revenue_type}' already exists"
+!         elif provider_id and revenue_type:
+!             message = f"Commission rate for provider '{provider_id}' and revenue type '{revenue_type}' already exists"
+!         elif revenue_type:
+!             message = f"Commission rate for revenue type '{revenue_type}' already exists"
+!         else:
+!             message = "Duplicate commission rate"
+  
+!         super().__init__(message)
+!         self.revenue_type = revenue_type
+!         self.strategy_id = strategy_id
+!         self.provider_id = provider_id
+  
+  
+> class ReferralCommissionError(CommissionError):
+>     """Raised when referral commission operations fail."""
+  
+>     def __init__(self, message, referrer_id=None, referred_id=None):
+!         super().__init__(message)
+!         self.referrer_id = referrer_id
+!         self.referred_id = referred_id
+  
+  
+> class CommissionCalculationError(CommissionError):
+>     """Raised when commission calculation fails due to business logic errors."""
+  
+>     def __init__(self, message, calculation_context=None):
+!         super().__init__(message)
+!         self.calculation_context = calculation_context
+  
+  
+> class RateLimitExceededError(CommissionError):
+>     """Raised when rate limit for commission operations is exceeded."""
+  
+>     def __init__(self, operation, limit, window):
+!         message = f"Rate limit exceeded for {operation}: {limit} operations per {window}"
+!         super().__init__(message)
+!         self.operation = operation
+!         self.limit = limit
+!         self.window = window
+  
+  
+> class CommissionValidationError(CommissionError):
+>     """Raised when commission data validation fails."""
+  
+>     def __init__(self, message, field=None, value=None):
+!         super().__init__(message)
+!         self.field = field
+!         self.value = value

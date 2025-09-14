@@ -1,0 +1,496 @@
+> import hashlib
+> import time
+> from collections import defaultdict, deque
+> from datetime import datetime, timezone, timedelta
+> from typing import List, Optional, Dict, Any
+  
+> from fastapi import APIRouter, Depends, HTTPException, Query, status
+> from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+> from pydantic import ConfigDict, BaseModel, Field
+> from sqlalchemy.orm import Session
+  
+> from src.database.core import get_db_session
+> from src.database.models import Strategy
+> from src.api.auth.api_key_models import APIKey
+> """
+> Public signals API endpoints for AgentTradr.
+> Provides public access to trading signals and strategy information.
+> """
+  
+  
+  
+  # TODO: Import missing models when they are implemented
+  # from database.models import APIKey, StrategySignal, Strategy, StrategyProvider
+> router = APIRouter(prefix="/api/public/v1", tags=["Public API"])
+  
+  # HTTP Bearer for API key authentication
+> security = HTTPBearer()
+  
+  # Rate limiting storage
+> rate_limit_storage = defaultdict(
+>     lambda: {"requests": deque(), "window_start": time.time()}
+> )
+  
+  
+  # Request/Response models
+> class PublicSignalResponse(BaseModel):
+>     """Public signal response with limited information."""
+  
+>     id: str
+>     strategy_id: str
+>     strategy_name: str
+>     provider_name: str
+>     signal_type: str = Field(
+>         ..., description="Type of signal: entry, exit, update, alert"
+>     )
+>     action: str = Field(..., description="Trading action: buy, sell, hold, close")
+>     symbol: str = Field(..., description="Trading symbol (e.g., EUR/USD)")
+>     entry_price: float = Field(..., description="Entry price for the signal")
+>     stop_loss: Optional[float] = Field(None, description="Stop loss price")
+>     take_profit: Optional[float] = Field(None, description="Take profit price")
+>     status: str = Field(
+>         ..., description="Signal status: pending, active, closed, cancelled"
+>     )
+>     confidence: str = Field(..., description="Signal confidence: low, medium, high")
+>     risk_level: str = Field(
+>         ..., description="Risk level: conservative, moderate, aggressive"
+>     )
+>     created_at: datetime = Field(..., description="Signal creation timestamp")
+>     expires_at: Optional[datetime] = Field(
+>         None, description="Signal expiration timestamp"
+>     )
+  
+>     model_config = ConfigDict(
+>         from_attributes=True,
+>         json_schema_extra={
+>             "example": {
+>                 "id": "123e4567-e89b-12d3-a456-426614174000",
+>                 "strategy_id": "456e7890-e12b-34c5-d678-901234567890",
+>                 "strategy_name": "Forex Momentum Pro",
+>                 "provider_name": "Elite Trading Systems",
+>                 "signal_type": "entry",
+>                 "action": "buy",
+>                 "symbol": "EUR/USD",
+>                 "entry_price": 1.0850,
+>                 "stop_loss": 1.0800,
+>                 "take_profit": 1.0950,
+>                 "status": "active",
+>                 "confidence": "high",
+>                 "risk_level": "moderate",
+>                 "created_at": "2025-08-25T14:30:00Z",
+>                 "expires_at": "2025-08-25T18:30:00Z",
+>             }
+>         },
+>     )
+  
+  
+> class PublicStrategyResponse(BaseModel):
+>     """Public strategy information response."""
+  
+>     id: str
+>     name: str
+>     description: str
+>     provider_name: str
+>     category: str
+>     risk_level: str
+>     min_capital: Optional[float]
+>     currency: str = "USD"
+>     performance_metrics: Dict[str, Any]
+>     is_active: bool
+>     created_at: datetime
+  
+>     model_config = ConfigDict(
+>         from_attributes=True,
+>         json_schema_extra={
+>             "example": {
+>                 "id": "456e7890-e12b-34c5-d678-901234567890",
+>                 "name": "Forex Momentum Pro",
+>                 "description": "Advanced forex momentum trading strategy",
+>                 "provider_name": "Elite Trading Systems",
+>                 "category": "Forex",
+>                 "risk_level": "moderate",
+>                 "min_capital": 10000.0,
+>                 "currency": "USD",
+>                 "performance_metrics": {
+>                     "total_return": 15.3,
+>                     "win_rate": 68.5,
+>                     "max_drawdown": -8.2,
+>                     "sharpe_ratio": 1.45,
+>                     "total_signals": 142,
+>                 },
+>                 "is_active": True,
+>                 "created_at": "2025-08-01T10:00:00Z",
+>             }
+>         },
+>     )
+  
+  
+> class APIKeyResponse(BaseModel):
+>     """API key information response."""
+  
+>     key_id: str
+>     name: str
+>     permissions: List[str]
+>     rate_limit: int
+  
+  
+> class RateLimitInfo(BaseModel):
+>     """Rate limit information."""
+  
+>     limit: int
+>     remaining: int
+>     reset_at: datetime
+>     retry_after: Optional[int] = None
+  
+  
+  # Rate limiting decorator
+> def rate_limit(max_requests: int = 100, window_minutes: int = 60):
+>     """Rate limiting decorator."""
+  
+>     def decorator(func):
+>         async def wrapper(*args, **kwargs):
+              # Extract API key from dependencies
+>             api_key = None
+>             for key, value in kwargs.items():
+>                 if key == "api_key_data":
+>                     api_key = value
+>                     break
+  
+>             for key, value in kwargs.items():
+>                 if key == "api_key_data":
+>                     api_key = value
+>                     break
+>             if not api_key:
+!                 raise HTTPException(
+!                     status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required"
+!                 )
+  
+              # Use API key ID for rate limiting
+>             key_id = api_key["key_id"]
+>             current_time = time.time()
+>             window_seconds = window_minutes * 60
+  
+              # Clean old requests outside the window
+>             client_data = rate_limit_storage[key_id]
+>             while (
+>                 client_data["requests"]
+>                 and client_data["requests"][0] < current_time - window_seconds
+>             ):
+!                 client_data["requests"].popleft()
+  
+              # Check rate limit
+>             if len(client_data["requests"]) >= max_requests:
+                  # Calculate when the window resets
+>                 oldest_request = client_data["requests"][0]
+>                 reset_time = oldest_request + window_seconds
+>                 retry_after = int(reset_time - current_time)
+  
+>                 raise HTTPException(
+>                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+>                     detail={
+>                         "error": "Rate limit exceeded",
+>                         "limit": max_requests,
+>                         "window_minutes": window_minutes,
+>                         "retry_after_seconds": retry_after,
+>                     },
+>                     headers={
+>                         "Retry-After": str(retry_after),
+>                         "X-RateLimit-Limit": str(max_requests),
+>                         "X-RateLimit-Remaining": "0",
+>                         "X-RateLimit-Reset": str(int(reset_time)),
+>                     },
+>                 )
+  
+              # Add current request
+>             client_data["requests"].append(current_time)
+  
+              # Add rate limit headers to response
+>             reset_time = current_time + window_seconds
+  
+              # Call the original function
+>             result = await func(*args, **kwargs)
+  
+>             return result
+  
+>         return wrapper
+  
+>     return decorator
+  
+  
+  # Authentication dependency
+> async def get_api_key(
+>     credentials: HTTPAuthorizationCredentials = Depends(security),
+>     db: Session = Depends(get_db_session),
+> ) -> Dict[str, Any]:
+>     """Validate API key and return key information."""
+  
+!     api_key = credentials.credentials
+  
+!     if not api_key or not api_key.startswith("ak_"):
+!         raise HTTPException(
+!             status_code=status.HTTP_401_UNAUTHORIZED,
+!             detail="Invalid API key format. API keys must start with 'ak_'",
+!         )
+  
+      # TODO: Implement API key authentication when APIKey model is available
+      # Hash the API key to compare with stored hash
+!     key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+  
+      # Find API key in database
+!     key_record = (
+!         db.query(APIKey).filter(APIKey.key_hash == key_hash, APIKey.is_active).first()
+!     )
+!     if not key_record:
+!         raise HTTPException(
+!             status_code=status.HTTP_401_UNAUTHORIZED,
+!             detail="Invalid or inactive API key",
+!         )
+  
+      # Check if key has expired
+!     if key_record.expires_at and key_record.expires_at < datetime.now(timezone.utc):
+!         raise HTTPException(
+!             status_code=status.HTTP_401_UNAUTHORIZED, detail="API key has expired"
+!         )
+  
+      # Update last used timestamp
+!     key_record.last_used_at = datetime.now(timezone.utc)
+!     db.commit()
+  
+!     return {
+!         "key_id": str(key_record.id),
+!         "user_id": str(key_record.user_id),
+!         "name": key_record.name,
+!         "permissions": key_record.permissions,
+!         "rate_limit": key_record.rate_limit,
+!     }
+  
+  
+  # Public API Endpoints
+> @router.get(
+>     "/signals/live",
+>     response_model=List[PublicSignalResponse],
+>     summary="Get Live Trading Signals",
+>     description="""
+> **Retrieve currently active trading signals from verified providers.**
+  
+>     This endpoint returns real-time trading signals that are currently active 
+>     and available for execution. All signals are sourced from verified trading 
+>     strategies and include comprehensive metadata for automated trading systems.
+  
+>     **Rate Limit:** 1000 requests per hour
+  
+>     **Authentication:** Requires valid API key with `signals:read` permission
+  
+>     **Use Cases:**
+>     - Automated trading systems
+>     - Signal copying services
+>     - Real-time market analysis
+>     - Trading bot integrations
+  
+>     **Signal Lifecycle:**
+>     - `pending`: Signal just created, not yet active
+>     - `active`: Signal is live and should be traded
+>     - `closed`: Signal has been closed (via stop loss, take profit, or manual close)
+>     - `cancelled`: Signal was cancelled before execution
+>     """,
+>     responses={
+>         200: {
+>             "description": "List of active trading signals",
+>             "content": {
+>                 "application/json": {
+>                     "example": [
+>                         {
+>                             "id": "123e4567-e89b-12d3-a456-426614174000",
+>                             "strategy_id": "456e7890-e12b-34c5-d678-901234567890",
+>                             "strategy_name": "Forex Momentum Pro",
+>                             "provider_name": "Elite Trading Systems",
+>                             "signal_type": "entry",
+>                             "action": "buy",
+>                             "symbol": "EUR/USD",
+>                             "entry_price": 1.0850,
+>                             "stop_loss": 1.0800,
+>                             "take_profit": 1.0950,
+>                             "status": "active",
+>                             "confidence": "high",
+>                             "risk_level": "moderate",
+>                             "created_at": "2025-08-25T14:30:00Z",
+>                             "expires_at": "2025-08-25T18:30:00Z",
+>                         }
+>                     ]
+>                 }
+>             },
+>         },
+>         401: {"description": "Invalid or missing API key"},
+>         429: {"description": "Rate limit exceeded"},
+>     },
+> )
+> @rate_limit(max_requests=1000, window_minutes=60)  # 1000 requests per hour
+> async def get_live_signals(
+>     strategy_ids: Optional[str] = Query(
+>         None, description="Comma-separated strategy IDs to filter"
+>     ),
+>     symbols: Optional[str] = Query(
+>         None, description="Comma-separated symbols to filter (e.g., EUR/USD,GBP/USD)"
+>     ),
+>     signal_types: Optional[str] = Query(
+>         None, description="Comma-separated signal types (entry,exit,update,alert)"
+>     ),
+>     risk_levels: Optional[str] = Query(
+>         None,
+>         description="Comma-separated risk levels (conservative,moderate,aggressive)",
+>     ),
+>     limit: int = Query(
+>         50, ge=1, le=200, description="Maximum number of signals to return"
+>     ),
+>     api_key_data: Dict[str, Any] = Depends(get_api_key),
+>     db: Session = Depends(get_db_session),
+> ):
+>     """
+>     Get currently active trading signals.
+>     Returns signals that are either pending or active status.
+>     """
+  # TODO: Implement when StrategySignal model is available
+      # Base query for active signals
+      # query = db.query(StrategySignal).filter(
+      #     StrategySignal.status.in_(["pending", "active"])
+      # )
+      # For now, return empty list
+!     return []
+  
+      # TODO: Complete implementation when StrategySignal model is available
+  
+  
+> @router.get("/signals/history", response_model=List[PublicSignalResponse])
+> @rate_limit(max_requests=500, window_minutes=60)  # 500 requests per hour
+> async def get_signal_history(
+>     strategy_ids: Optional[str] = Query(
+>         None, description="Comma-separated strategy IDs"
+>     ),
+>     symbols: Optional[str] = Query(None, description="Comma-separated symbols"),
+>     start_date: Optional[datetime] = Query(
+>         None, description="Start date for historical signals"
+>     ),
+>     end_date: Optional[datetime] = Query(
+>         None, description="End date for historical signals"
+>     ),
+>     status: Optional[str] = Query(None, description="Signal status filter"),
+>     skip: int = Query(0, ge=0, description="Number of signals to skip for pagination"),
+>     limit: int = Query(
+>         50, ge=1, le=200, description="Maximum number of signals to return"
+>     ),
+>     api_key_data: Dict[str, Any] = Depends(get_api_key),
+>     db: Session = Depends(get_db_session),
+> ):
+>     """
+>     Get historical trading signals with pagination support.
+>     Allows filtering by strategy, symbol, date range, and status.
+>     """
+  
+      # TODO: Implement when StrategySignal model is available
+      # For now, return empty list
+!     return []
+  
+  
+> @router.get("/strategies/list", response_model=List[PublicStrategyResponse])
+> @rate_limit(max_requests=200, window_minutes=60)  # 200 requests per hour
+> async def get_strategies_list(
+>     category: Optional[str] = Query(None, description="Strategy category filter"),
+>     risk_level: Optional[str] = Query(None, description="Risk level filter"),
+>     min_return: Optional[float] = Query(
+>         None, description="Minimum return percentage filter"
+>     ),
+>     active_only: bool = Query(True, description="Show only active strategies"),
+>     limit: int = Query(
+>         50, ge=1, le=100, description="Maximum number of strategies to return"
+>     ),
+>     api_key_data: Dict[str, Any] = Depends(get_api_key),
+>     db: Session = Depends(get_db_session),
+> ):
+>     """
+>     Get list of available trading strategies with basic performance metrics.
+>     Allows filtering by category, risk level, and performance.
+>     """
+  
+      # TODO: Implement when StrategyProvider model is available
+      # Base query using available Strategy model
+!     strategies = db.query(Strategy).filter(
+!         Strategy.status == "active" if active_only else True
+!     ).order_by(Strategy.created_at.desc()).limit(limit).all()
+  
+      # Convert to response format with mock data
+!     response = []
+!     for strategy in strategies:
+          # Mock performance metrics since StrategySignal model is not available
+!         performance_metrics = {
+!             "total_return": 12.5,  # Mock data
+!             "win_rate": 65.0,
+!             "max_drawdown": -8.5,
+!             "sharpe_ratio": 1.2,
+!             "total_signals": 85,
+!         }
+  
+!         response.append(
+!             PublicStrategyResponse(
+!                 id=str(strategy.id),
+!                 name=strategy.name,
+!                 description=strategy.description or "Professional trading strategy",
+!                 provider_name="Mock Provider",  # TODO: Get from StrategyProvider when available
+!                 category="General",  # TODO: Use strategy.category when field exists
+!                 risk_level="moderate",  # TODO: Use strategy.risk_level when field exists
+!                 min_capital=None,  # TODO: Use strategy.minimum_capital when field exists
+!                 currency="USD",
+!                 performance_metrics=performance_metrics,
+!                 is_active=(strategy.status == "active"),
+!                 created_at=strategy.created_at,
+!             )
+!         )
+  
+!     return response
+  
+  
+> @router.get("/health")
+> async def health_check():
+>     """
+>     Health check endpoint for API monitoring.
+>     Returns service status and version information.
+>     """
+!     return {
+!         "status": "healthy",
+!         "timestamp": datetime.now(timezone.utc).isoformat(),
+!         "version": "1.0.0",
+!         "service": "AgentTradr Public API",
+!     }
+  
+  
+> @router.get("/rate-limit")
+> async def get_rate_limit_status(
+>     api_key_data: Dict[str, Any] = Depends(get_api_key),
+> ) -> RateLimitInfo:
+>     """
+>     Get current rate limit status for the authenticated API key.
+>     Shows remaining requests and reset time.
+>     """
+  
+!     key_id = api_key_data["key_id"]
+!     max_requests = api_key_data.get("rate_limit", 1000)
+!     window_minutes = 60
+!     window_seconds = window_minutes * 60
+!     current_time = time.time()
+  
+      # Get current usage
+!     client_data = rate_limit_storage[key_id]
+  
+      # Clean old requests
+!     while (
+!         client_data["requests"]
+!         and client_data["requests"][0] < current_time - window_seconds
+!     ):
+!         client_data["requests"].popleft()
+  
+!     used_requests = len(client_data["requests"])
+!     remaining = max(0, max_requests - used_requests)
+!     reset_at = datetime.now(timezone.utc) + timedelta(seconds=window_seconds)
+  
+!     return RateLimitInfo(
+!         limit=max_requests, remaining=remaining, reset_at=reset_at, retry_after=None
+!     )

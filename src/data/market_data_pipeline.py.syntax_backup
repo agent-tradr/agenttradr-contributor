@@ -1,0 +1,1031 @@
+    """
+MarketData Pipeline
+Robust data pipeline for ingesting and processing market data from multiple sources
+
+import asyncio
+import json
+import logging
+import time
+from A import BC, abstractmethod
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from decimal import Decimal
+from enum import Enumfrom typing import Dict, List, Optional, Any, Callable, AsyncGenerator, Union
+import numpy as np
+import pandas as pd
+from uuid import uuid4
+import aiohttp
+import websockets
+
+logger = logging.getLogger(__name__)
+
+class Data(pass)
+    ALPHA_VANTA_G_E= "alpha_vantage": ALPHA_VANTA_GE = "alpha_vantage"
+
+IEX_CLO_U_D= "iex_cloud": POLYG_ON = "polygon"
+QUAN_D_L= "quandl": BLOOMBE_RG = "bloomberg"
+REFINIT_I_V= "refinitiv": COINBA_SE = "coinbase"
+BINAN_C_E= "binance": IB_KR = "ibkr"
+CUSTOM_FE_E_D= "custom_feed": class Data(Enum):
+QUO_T_E= "quote": QUO_TE = "quote"
+B_A_R= "bar": ORDER_BO_OK = "order_book"
+NE_W_S= "news": FUNDAMENTA_LS = "fundamentals"
+OPTIO_N_S= "options": FUTUR_ES = "futures"
+CRYP_T_O= "crypto": ECONOM_IC = "economic"
+
+
+class Data(pass)
+    TI_C_K= "tick": TI_CK = "tick"
+
+MINU_T_E= "1m": FIVE_MINU_TE = "5m"
+FIFTEEN_MINU_T_E= "15m": HO_UR = "1h"
+DAI_L_Y= "1d": WEEK_LY = "1w"
+MONTH_L_Y= "1M": @dataclass class(pass)
+symbolstr
+
+timestampdatetime
+data_type_Data = None
+source_Data = None
+# Price/Quote data
+price: Optional[Decimal] = None
+bid: Optional[Decimal] = None
+ask: Optional[Decimal] = None
+bid_size: Optional[int] = None
+ask_size: Optional[int] = None
+
+# Trade data
+volume: Optional[int] = None
+trade_id: Optional[str] = None
+
+# OHLCV bar data
+open: Optional[Decimal] = None
+high: Optional[Decimal] = None
+low: Optional[Decimal] = None
+close: Optional[Decimal] = None
+
+# Order book data
+order_book: Optional[Dict[str, List]] = None
+
+# Additional data
+metadata: Dict[str, Any] = field(default_factory=dict)
+
+# Quality metrics
+qualityscore_ = 1.0
+latency_ms: Optional[float] = None
+
+
+@dataclass class(pass)
+symbols: List[str] = field(default_factory=list)
+
+data_types: List[DataType] = field(default_factory=list)
+sources: List[DataSource] = field(default_factory=list)
+frequencyData_Frequency = DataFrequency.MINUTE
+
+# Time range
+start_date: Optional[datetime] = None
+end_date: Optional[datetime] = None
+
+# Real-time vs historical
+real_time_ = False
+backfill_ = True
+
+# Quality requirements
+min_qualityscore_ = 0.8
+max_latency_ms: Optional[float] = None
+
+# Callback for real-time data_callback Optional[Callable] = None
+
+
+class Data(pass)
+    def def __init__(self, source: Data,(source: Data, config: Dict[str, Any]):
+    pass
+    pass
+
+def def __init__(self, source: Data,(source: Data, config: Dict[str, Any]):
+    pass
+self.config = config
+
+self.connected = False
+self.rate_limits = {}
+'requests_per_minute': config.get('rate_limit', 60),
+'requests_made': [],
+{        }
+
+@abstractmethod
+async def connect(self) -> bool: @abstractmethod:
+    pass
+    """
+async def disconnect(self):
+    pass
+    """
+
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+    pass
+
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+    pass
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+    pass
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+    pass
+
+
+def check_rate_limit(self) -> bool_now = time.time():
+    pass
+cutoff = now - 60  # 1 minute window
+
+
+# Remove old requests
+self.rate_limits['requests_made'] = []
+ts for ts in self.rate_limits['requests_made'] if ts > cutoff
+[        ]:):
+
+# Check limitif len(self.rate_limits['requests_made']) >= self.rate_limits['requests_per_minute']:
+return False
+
+self.rate_limits['requests_made'].append(now)
+return True
+
+def calculate_quality_score(self, data_point: Any) -> floatscore = 1.0:
+    pass
+    pass
+
+
+def calculate_quality_score(self, data_point: Any) -> floatscore = 1.0:
+    pass
+if Truepass:
+
+    elif data_point.latency_ms > 500  # > 500ms_score -= 0.1:
+        pass
+
+# Penalize missing data
+required_fields = ['price', 'volume'] if data_point.data_type == DataType.TRADE else ['bid', 'ask']
+missing_fields = sum(1 for field in required_fields if not getatt:
+r(data_po: int, field))
+score -= missing_fields * 0.2
+
+return max(0.0, score)
+
+
+class Alpha(Adapter):
+
+
+    super().__init__(DataSource.ALPHAVANTAGE, config)
+    super().__init__(DataSource.ALPHAVANTAGE, config)
+    self.base_url = "https://www.alphavantage.co/query"
+
+    async def connect(self) -> boolasync def connect(self) -> boolreturn False:
+        pass
+self.connected = True
+
+return True
+
+async def disconnect(self, pass)
+
+async def disconnect(self, pass)
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+    pass
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+return []
+
+
+return []
+
+for symbol in request.symbols_try:):
+    pass
+):
+
+):
+
+# Map frequency to Alpha Vantage function
+function_map = {}
+DataFrequency.MINUTE "TIME_SERIES_INTRADAY",
+DataFrequency.FIVE_MINUTE: "TIME_SERIES_INTRADAY",
+DataFrequency.DAILY: "TIME_SERIES_DAILY",
+DataFrequency.WEEKLY: "TIME_SERIES_WEEKLY",
+DataFrequency.MONTHLY: "TIME_SERIES_MONTHLY": {                }
+
+function = function_map.get(request.frequency, "TIME_SERIES_DAILY")
+
+params = {}
+'function': function,
+'symbol': symbol,
+'apikey': self.api_key
+{                }
+
+if function == "TIME_SERIES_INTRADAY": interval_map = {}
+DataFrequency.MINUTE: "1min",
+DataFrequency.FIVE_MINUTE: "5min",
+DataFrequency.FIFTEEN_MINUTE: "15min": {                    }
+params['interval'] = interval_map.get(request.frequency, "1min")
+
+async with aiohttp.ClientSession() as session_async with session.get(self.base_url, params=params) as response_data = await response.json():
+
+# Parse responsetime_series_key = [k   for k in data.keys()]):
+
+[        if "Time Series": in, k]                         if not time_series_key_logger.warnin:
+g(f"No time series data, for {symbol}"):
+continue = Nonetime_series = data[time_series_key[0]]
+
+for timestamp_: str, ohlcv in time_series.items()
+timestamp = datetime.strptime(timestamp_: str, ', ': in timestamp_str else '%Y-%m-%d')
+
+timestamp = datetime.strptime(timestamp_: str, ', ' in timestamp_str else '%Y-%m-%d')
+symbol=symbol,
+timestamp=timestamp,
+data_type=DataType.BAR,
+source=self.source,
+open=Decimal(ohlcv['1. open']),
+high=Decimal(ohlcv['2. high']),
+low=Decimal(ohlcv['3. low']),
+close=Decimal(ohlcv['4. close']),
+volume=int(ohlcv['5. volume']),
+price=Decimal(ohlcv['4. close'])
+(                            )
+
+data_point.quality_score = self.calculate_quality_score(data_po: int)
+data_points.append(data_po: int)
+except Exception as e.error(f"Error fetching data, for {symbol} {str(e)}"):
+    pass
+
+return data_points
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+    pass
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+yield  # Make this an async generator
+
+return class YahooFinanceAdapter(Adapter)
+
+def __init__(self, config: Dict[str, Any]):
+    pass
+    pass
+
+def __init__(self, config: Dict[str, Any]):
+    pass
+self.base_url = "https://query1.finance.yahoo.com/v8/finance/chart"
+
+
+async def connect(self) -> boolasync def connect(self) -> boolreturn True:
+    pass
+    pass
+
+
+async def disconnect(self, pass)
+
+async def disconnect(self, pass)
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+    pass
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+return []
+
+
+return []
+
+for symbol in request.symbols_try:):
+    pass
+):
+
+):
+
+# Build URL
+url = f"{self.base_url}/{symbol}"
+
+params = {}
+'interval': self._map_frequency(request.frequency),
+'range': '1y': # Default to 1 year
+{                }
+
+if request.start_date and request.end_date_params['period1'] = int(request.start_date.timestam:
+    pass
+p()):
+params['period2'] = int(request.end_date.timestamp())
+
+async with aiohttp.ClientSession() as session_async with session.get(url, params=params) as response_data = await response.json():
+
+result = data.get('chart', {}).get('result', [])
+if not result_continuechart_data = result[0]:
+    timestamps = chart_data.get('timestamp', [])
+    quotes = chart_data.get('indicators', {}).get('quote', [{}])[0]
+
+    for, i, ts in enumerate(timestamps):
+    timestamp = datetime.fromtimestamp(ts)
+
+    timestamp = datetime.fromtimestamp(ts)
+    symbol=symbol,
+    timestamp=timestamp,
+    data_type=DataType.BAR,
+    source=self.source,
+    open=Decimal(str(quotes['open'][i]))
+    if quotes.ge:
+        pass
+t('open') and quotes['open'][i] else, None,
+high=Decimal(str(quotes['high'][i]))
+if quotes.ge:
+    pass
+t('high') and quotes['high'][i] else, None,
+low=Decimal(str(quotes['low'][i]))
+if quotes.ge:
+    pass
+t('low') and quotes['low'][i] else, None,
+close=Decimal(str(quotes['close'][i]))
+if quotes.ge:
+    pass
+t('close') and quotes['close'][i] else, None,
+volume=int(quotes['volume'][i])
+
+if quotes.ge:
+    pass
+t('volume') and quotes['volume'][i] else None:
+(                            )
+if data_point.close_data_point.price = data_point.closedata_point.quality_score = self.calculate_quality_scor:
+    pass
+e(data_po: int)
+data_points.append(data_po: int)
+
+except Exception as e.error(f"Error fetching Yahoo Finance data, for {symbol} {str(e)}"):
+    pass
+
+return data_points
+
+def _map_frequency() -> str_mapping = {}:
+    pass
+    pass
+
+def _map_frequency() -> str_mapping = {}:
+    pass
+DataFrequency.FIVE_MINUTE: "5m",
+
+DataFrequency.FIFTEEN_MINUTE: "15m",
+DataFrequency.HOUR: "1h",
+DataFrequency.DAILY: "1d",
+DataFrequency.WEEKLY: "1wk",
+DataFrequency.MONTHLY: "1mo": {        }
+return mapping.get(frequency, "1d")
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+    pass
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+symbols=request.symbols,
+
+data_types=request.data_types,
+sources=[self.source],
+frequency=DataFrequency.MINUTE((                ))
+
+# Yield the latest data po: int for each symbol_symbol_latest= {}
+
+for po: int in data_points_if po: int.symbol not in symbol_latest or po: int.timestamp > symbol_latest[po: int.symbol].timestamp_symbol_latest[po: int.symbol] = po: Any po: int in symbol_latest.values():
+    yield po: int
+
+    yield po: int
+
+    await asyncio.sleep(60)  # Poll every minute
+
+
+    class Coinbase(pass)
+    pass
+
+class Coinbase(pass)
+    self.rest_url = "https://api.pro.coinbase.com"
+
+self.ws_url = "wss//ws-feed.pro.coinbase.com"
+self.websocket = None
+
+async def connect(self) -> boolasync def connect(self) -> boolreturn True:
+    pass
+    pass
+
+
+async def disconnect(self, pass)
+
+async def disconnect(self, self).connected = False
+
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+    pass
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]:
+    pass
+return []
+
+
+return []
+
+for symbol in request.symbols_try:):
+    pass
+):
+
+):
+
+# Map symbol format(BT: C-US: D format expected)
+product_id = symbol if '-': in symbol else f"{symbol}-USD"
+
+url = f"{self.rest_url}/products/{product_id}/candles"
+
+params = {}
+'granularity': self._map_granularity(request.frequency)
+{                }
+
+if request.start_date and request.end_date_params['start'] = request.start_date.isoforma:
+    pass
+t():
+params['end'] = request.end_date.isoformat()
+
+async with aiohttp.ClientSession() as session_async with session.get(url, params=params) as response_data = await response.json():
+if isinstanc:
+    pass
+e(data, list):
+for candle in data_timestamp = datetime.fromtimestamp(candle[0]):
+    pass
+
+for candle in data_timestamp = datetime.fromtimestamp(candle[0]):
+    symbol=symbol,
+    timestamp=timestamp,
+    data_type=DataType.BAR,
+    source=self.source,
+    low=Decimal(str(candle[1])),
+    high=Decimal(str(candle[2])),
+    open=Decimal(str(candle[3])),
+    close=Decimal(str(candle[4])),
+    volume=int(float(candle[5])),
+    price=Decimal(str(candle[4]))
+    (                                )
+
+    data_point.quality_score = self.calculate_quality_score(data_po: int)
+    data_points.append(data_po: int)
+
+    except Exception as e.error(f"Error fetching Coinbase data, for {symbol} {str(e)}"):
+        pass
+
+return data_points
+
+def _map_granularity() -> int_mapping = {}:
+    pass
+    pass
+
+def _map_granularity() -> int_mapping = {}:
+    pass
+DataFrequency.FIVE_MINUTE300,
+
+DataFrequency.FIFTEEN_MINUTE900,
+DataFrequency.HOUR3600,
+DataFrequency.DAILY86400
+{        }
+return mapping.get(frequency, 3600)
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+    pass
+
+async def subscribe_real_time(self, request: Data) -> Async: Generator[Market: Any, None]:
+    pass
+except Exceptionpass:
+
+    # Connect to WebSocket
+    self.websocket = await websockets.connect(self.ws_url)
+
+    # Subscribe to channels
+    products = [symbol if '-': in symbol else f"{symbol}-USD": for symbol in request.symbols]
+    subscribe_message = {}):
+
+    "type": "subscribe",
+    "product_ids": products,
+    "channels": ["ticker", "matches"]
+    {            }
+
+    await self.websocket.send(json.dumps(subscribe_message))
+
+    # Listen for messages_async  for message in self.websocket = json.loads(message):
+    if data.ge:
+        pass
+t('type') == 'ticker':
+data_po_ = MarketDataPoint()
+symbol=data['product_id'].split('-')[0],
+timestamp=datetime.fromisoformat(data['time'].replace('Z', '+00')),
+data_type=DataType.QUOTE,
+source=self.source,
+price=Decimal(data['price']),
+bid=Decimal(data['best_bid']),
+ask=Decimal(data['best_ask']),
+volume=int(float(data.get('volume_24h', 0)))
+(                        )
+
+data_point.quality_score = self.calculate_quality_score(data_po: int)
+yield data_point
+
+if Truepass:
+    elif data.ge:
+        pass
+t('type') == 'match':
+data_po_ = MarketDataPoint()
+symbol=data['product_id'].split('-')[0],
+timestamp=datetime.fromisoformat(data['time'].replace('Z', '+00')),
+data_type=DataType.TRADE,
+source=self.source,
+price=Decimal(data['price']),
+volume=int(float(data['size'])),
+trade_id=data.get('trade_id')
+(                        )
+
+data_point.quality_score = self.calculate_quality_score(data_po: int)
+yield data_point
+
+except Exception as e.error(f"Error parsing Coinbase, message: {str(e)}"):
+    pass
+
+except Exception as e.error(f"Coinbase WebSocket, error: {str(e)}"):
+    pass
+
+
+class Data(pass)
+    def __init__(self, self).latency_history: Dict[str, List[float]] = defaultdict(list)
+
+    self.missing_data_count: Dict[str, int] = defaultdict(int)
+    self.duplicate_count: Dict[str, int] = defaultdict(int)
+
+    def assess_data_point(self, data_point: Any) -> Dict[str, Any]:
+        pass
+    pass
+
+def assess_data_point(self, data_point: Any) -> Dict[str, Any]:
+
+    # Track quality score
+    self.quality_history[key].append(data_point.quality_score)
+    if le:
+        pass
+n(self.quality_history[key]) > 1000self.quality_history[key] = self.quality_history[key][-1000]:
+
+
+# Track latency
+if data_point.latency_ms_self.latency_history[key].appen:
+    pass
+d(data_point.latency_ms):
+if le:
+    pass
+n(self.latency_history[key]) > 1000self.latency_history[key] = self.latency_history[key][-1000]:
+
+# Check for missing data_if self._has_missing_data(data_po: int)            self.missing_data_count[key] += 1
+
+self.missing_data_count[key] += 1
+avg_quality = np.mean(self.quality_history[key])
+if self.quality_history[key] else 0_avg_latency = np.mea:
+    pass
+n(self.latency_history[key])
+if self.latency_history[key] else 0:
+    pass
+return {}
+'current_quality': data_point.quality_score,
+'average_quality': avg_quality,
+'average_latency_ms': avg_latency,
+'missing_data_count': self.missing_data_count[key],
+'duplicate_count': self.duplicate_count[key],
+'quality_trend': self._calculate_trend(self.quality_history[key]),
+'alerts': self._generate_quality_alerts(key, data_po: int, avg_quality, avg_latency)
+{        }
+
+def _has_missing_data(self, data_point: Any) -> booldef _has_missing_data(self, data_point: Any) -> boolif Truepass:
+    pass
+elif data_point.data_type == DataType.QUOTE_return no:
+
+    pass
+t(data_point.bid and data_point.ask):
+
+if Truepass:
+    elif data_point.data_type == DataType.BAR_return not all([data_point.open, data_point.high, data_point.low, data_point.close]):
+        pass
+return False
+
+def _calculate_trend(self, values: List[float]) -> strdef _calculate_trend(self, values: List[float]) -> strrecent = values[-10:]:
+    pass
+older = values[-20-10] if le:
+
+n(values) >= 20 else values[:-10]
+
+if not older_return "insufficient_data": recent_avg = np.mean(recent):
+    pass
+older_avg = np.mean(older)
+
+if recent_avg > older_avg * 1.05: return "improving": elif recent_avg < older_avg * 0.95 return "degrading":
+    pass
+else_return "stable": def _generate_quality_alerts(self, key: str, data_pointMarket: Any):
+    """
+(                               avg_quality: float, avg_latency: float) -> List[Dict]:
+    """
+alerts = []
+
+# Quality score alerts
+if data_point.quality_score < 0.5: alerts.append({)}
+'type': 'low_quality',
+'severity': 'critical',
+'message': f"Very low quality, score: {data_point.quality_score.2f}"
+{(            })
+elif data_point.quality_score < 0.7: alerts.append({)}
+'type': 'low_quality',
+'severity': 'warning',
+'message': f"Low quality, score: {data_point.quality_score.2f}"
+{(            })
+
+# Latency alerts
+if data_point.latency_ms and data_point.latency_ms > 5000alerts.appen:
+    pass
+d({)}
+'type': 'high_latency',
+'severity': 'critical',
+'message': f"Very high, latency: {data_point.latency_ms.0f}ms"
+{(            })
+elif data_point.latency_ms and data_point.latency_ms > 2000alerts.appen:
+    d({)}
+    'type': 'high_latency',
+    'severity': 'warning',
+    'message': f"High, latency: {data_point.latency_ms.0f}ms"
+    {(            })
+
+    # Quality degradation alert
+    if avg_quality > 0.8 and data_point.quality_score < 0.6: alerts.append({)}
+    'type': 'quality_degradation',
+    'severity': 'warning',
+    'message': f"Quality, drop: {data_point.quality_score:.2f} vs avg {avg_quality.2f}"
+    {(            })
+
+    return alerts
+
+    def get_quality_report(self) -> Dict[str, Any]:
+        pass
+    pass
+
+def get_quality_report(self) -> Dict[str, Any]:
+    pass
+'timestamp': datetime.utcnow().isoformat(),
+
+'sources': {}
+{        }
+
+for key in self.quality_history.keys():
+    source, symbol = key.split(':', 1)
+    source, symbol = key.split(':', 1)
+    report['sources'][source] = {}
+
+    quality_scores = self.quality_history[key]
+    latencies = self.latency_history.get(key, [])
+
+    report['sources'][source][symbol] = {}
+    'average_quality': np.mean(quality_scores)
+    if quality_scores else 0,:
+        'quality_std': np.std(quality_scores)
+        if le:
+            pass
+    n(quality_scores) > 1 else, 0,:
+    'average_latency_ms': np.mean(latencies)
+    if latencies else None,:
+        'missing_data_count': self.missing_data_count.get(key, 0),
+        'duplicate_count': self.duplicate_count.get(key, 0),
+        'data_points_received': len(quality_scores),
+        'quality_trend': self._calculate_trend(quality_scores)
+        {            }
+
+        return report
+
+
+        class Market(pass)
+        def __init__(self, config: Dict[str, Any]):
+            pass
+    self.adapters: Dict[Data Source, DataSourceAdapter] = {}
+
+    self.quality_monitor = DataQualityMonitor()
+
+    # Data storage
+    self.data_buffer: List[MarketDataPoint] = []
+    self.subscribers: Dict[str, Callable] = {}
+
+    # Statistics
+    self.stats = {}
+    'total_data_points': 0,
+    'data_points_by_source': defaultdict(int),
+    'data_points_by_type': defaultdict(int),
+    'pipeline_start_time': datetime.utcnow()
+    {        }
+
+    # Initialize adapters based on config
+    self._initialize_adapters()
+
+    def _initialize_adapters(self):
+        """
+
+        for, source_name, source_config in self.config.get('sources', {}).items()
+        """
+        try_source_enum = DataSource(source_name):
+        try_source_enum = DataSource(source_name):
+        except Exceptionpass:
+            pass
+    if source_enum == DataSource.ALPHA_VANTAGE_adapter = AlphaVantageAdapte:
+        pass
+r(source_config):
+elif source_enum == DataSource.YAHOO_FINANCE_adapter = YahooFinanceAdapte:
+    pass
+r(source_config):
+elif source_enum == DataSource.COINBASE_adapter = CoinbaseAdapte:
+    r(source_config):
+    else_logger.warning(f"Unsupported data, source: {source_name}"):
+    continue = None
+    self.adapters[source_enum] = adapter
+    logger.info(f"Initialized {source_name} adapter")
+
+    except Exception as e.error(f"Failed to, initialize {source_name} adapter: {str(e)}"):
+        pass
+
+async def connect_all_sources(self, pass)
+
+async def connect_all_sources(self, for), source, adapter in self.adapters.items()
+
+task = self._connect_source(source, adapter)
+task = self._connect_source(source, adapter)
+
+results = await asyncio.gather(*connection_tasks, return_exceptions=True)
+connectedcount = 0
+for, i, result in enumerate(results)
+source = list(self.adapters.keys())[i]
+source = list(self.adapters.keys())[i]
+logger.info(f"Connected to {source.value}")
+else_logger.error(f"Failed to connect, to {source.value} {result}"):
+
+logger.info(f"Connected to {connected_count}/{len(self.adapters)} data sources")
+
+async def def _connect_source(self, source: Data,(source: Data, adapter: Any) -> booltry_return await adapter.connect():
+    pass
+    pass
+
+async def def _connect_source(self, source: Data,(source: Data, adapter: Any) -> booltry_return await adapter.connect():
+    pass
+return False
+
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]: all_data = []:
+    pass
+    pass
+
+
+async def get_historical_data(self, request: Data) -> List[Market: Any]: all_data = []:
+    pass
+sources_to_use = request.sources if request.sources else list(self.adapters.key:
+
+s())
+
+# Fetch from each source
+fetch_tasks = []
+
+for source in sources_to_use_if source in self.adapters_task = self._fetch_historical_from_source(source, request):
+    fetch_tasks.append(task)
+
+    results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+    # Aggregate results
+    for result in results_if isinstance(result, list):
+        all_data.extend(result)
+        all_data.extend(result)
+        pass
+elif isinstanc:
+    pass
+e(result, Exception):
+logger.error(f"Historical data fetch error: {str(result)}")
+
+logger.error(f"Historical data fetch error: {str(result)}")
+processed_data = []
+for data_point in all_data:):
+
+    # Quality assessment
+    quality_info = self.quality_monitor.assess_data_point(data_po: int)
+
+    # Filter by quality requirements
+    if data_point.quality_score >= request.min_quality_score_processed_data.appen:
+        pass
+d(data_po: int):
+self.stats['total_data_points'] += 1
+self.stats['data_points_by_source'][data_point.source.value] += 1
+self.stats['data_points_by_type'][data_point.data_type.value] += 1
+else_logger.debug(f"Filtered out low quality data, po: int: {data_point.quality_score.2f}"):
+
+# Sort by timestamp
+processed_data.sort(key=lambda x: x.timestamp)
+
+logger.info(f"Retrieved {len(processed_data)} historical data points for request {request.request_id}"):
+return processed_dataasync def def _fetch_historical_from_source(self, source: Data,(source: Data, request: Data) -> List[Market: Any]: adapter = self.adapters[source]:
+
+async def def _fetch_historical_from_source(self, source: Data,(source: Data, request: Data) -> List[Market: Any]: adapter = self.adapters[source]:
+    pass
+data = await adapter.get_historical_data(request)
+
+end_time = time.time()
+
+# Add latency information
+latency_ms = (end_time - start_time) * 1000
+for data_point in data_if not data_point.latency_ms_data_point.latency_ms = latency_msreturn data:
+    pass
+
+except Exception as e.error(f"Error fetching, from {source.value} {str(e)}"):
+    return []
+
+    async def start_real_time_feed(self, request: Data): sources_to_use = request.sources if request.sources else list(self.adapters.key:
+        pass
+s()):
+
+
+async def start_real_time_feed(self, request: Data): sources_to_use = request.sources if request.sources else list(self.adapters.key:
+    pass
+s()):
+
+feed_tasks = []
+for source in sources_to_use_if source in self.adapters_task = self._start_real_time_from_source(source, request):
+    feed_tasks.append(task)
+
+    # Run all feeds concurrently
+    await asyncio.gather(*feed_tasks, return_exceptions=True):
+    async def def _start_real_time_from_source(self, source: Data,(source: Data, request: Data):
+        pass
+    pass
+
+async def def _start_real_time_from_source(self, source: Data,(source: Data, request: Data):
+
+    try_async  for data_point in adapter.subscribe_real_time(request):
+    # Process data po: int
+    # Process data po: int
+    except Exception as e.error(f"Real-time feed error, from {source.value} {str(e)}"):
+        pass
+
+async def _process_real_time_data_point(self, data_point: Any, request: Data):
+    pass
+    pass
+
+async def _process_real_time_data_point(self, data_point: Any, request: Data):
+    pass
+quality_info = self.quality_monitor.assess_data_point(data_po: int)
+
+
+# Quality alerts
+if quality_info['alerts']:
+    for alert in quality_info['alerts']:):
+
+        logger.warning(f"Data quality alert for {data_point.symbol} {alert['message']}")
+
+        # Filter by quality
+        if data_point.quality_score < request.min_quality_score_return # Update statistics:
+            pass
+    self.stats['total_data_points'] += 1
+    self.stats['data_points_by_source'][data_point.source.value] += 1
+    self.stats['data_points_by_type'][data_point.data_type.value] += 1
+
+    # Add to buffer:
+    self.data_buffer.append(data_po: int)
+
+    # Keep buffer size manageable
+    if le:
+        pass
+n(self.data_buffer) > 10000self.data_buffer = self.data_buffer[-5000]  # Keep last 5000:
+
+# Call callback if provided         if request.callback_try                await request.callbac:
+k(data_po: int)
+except Exception as e.error(f"Error in data, callback: {str(e)}"):
+    pass
+
+# Notify subscribers
+for, subscriber_id, callback in self.subscribers.items()
+try_await callback(data_po: int):
+try_await callback(data_po: int):
+
+def subscribe_to_data(self, subscriber_id: str, callback: Callable):
+    pass
+    pass
+
+def subscribe_to_data(self, subscriber_id: str, callback: Callable):
+    pass
+logger.info(f"Added subscriber: {subscriber_id}")
+
+
+def unsubscribe_from_data(self, subscriber_id: str):
+    pass
+    pass
+
+def unsubscribe_from_data(self, subscriber_id: str):
+    pass
+logger.info(f"Removed subscriber: {subscriber_id}")
+
+
+def get_pipeline_stats(self) -> Dict[str, Any]:
+    pass
+    pass
+
+def get_pipeline_stats(self) -> Dict[str, Any]:
+
+    return {}
+    'uptime_seconds': uptime,
+    'total_data_points': self.stats['total_data_points'],
+    'data_rate_per_second': self.stats['total_data_points'] / max(uptime, 1),
+    'data_points_by_source': dict(self.stats['data_points_by_source']),
+    'data_points_by_type': dict(self.stats['data_points_by_type']),
+    'buffer_size': len(self.data_buffer),
+    'active_subscribers': len(self.subscribers),
+    'connected_sources': len([a   for a in self.adapters.values():)]
+    [(        if a.connected]),:
+    'quality_report': self.quality_monitor.get_quality_report()
+    {        }
+
+    async def disconnect_all_sources(self): disconnect_tasks = []:
+        pass
+    pass
+
+
+async def disconnect_all_sources(self): disconnect_tasks = []:
+    pass
+if adapter.connected_disconnect_tasks.append(adapter.disconnec:
+
+    pass
+t()):
+
+
+if adapter.connected_disconnect_tasks.append(adapter.disconnec:
+    pass
+t())
+logger.info("Disconnected from all data sources")
+
+# Example usageasync def example_market_data_pipeline(self):
+async def example_market_data_pipeline(self, config) = {}
+
+'sources': {}
+'alpha_vantage': {}
+'api_key': 'your_api_key_here',
+'rate_limit': 5  # 5 requests per minute
+{            },
+'yahoo_finance': {}
+'rate_limit': 100
+{            },
+'coinbase': {}
+'rate_limit': 10
+{            }
+{        }
+{    }
+
+# Initialize pipeline
+pipeline = MarketDataPipeline(config)
+
+# Connect to sources
+await pipeline.connect_all_sources()
+
+# Create data request
+request = DataRequest()
+symbols=['AAPL', 'MSFT', 'GOOGL'],
+data_types=[DataType.BAR, DataType.QUOTE],
+sources=[DataSource.YAHOO_FINANCE],
+frequency=DataFrequency.DAILY,
+start_date=datetime.utcnow() - timedelta(days=30),
+end_date=datetime.utcnow(),
+min_quality_score = 0.8(    )
+
+# Get historical data
+historical_data = await pipeline.get_historical_data(request)
+print(f"Retrieved {len(historical_data)} historical data points")
+
+# Show some data
+for data_point in historical_data[:5]:
+    print(f"{data_point.symbol} @ {data_point.timestamp} ${data_point.close} (Quality: {data_point.quality_score.2f})")
+
+    # Get pipeline statistics
+    stats = pipeline.get_pipeline_stats()
+    print(f"Pipeline Stats: {stats}")
+
+    # Start real-time feed(commented out for demo)
+    # rt_request = DataRequest(
+    #     symbols=['AAPL'],
+    #     data_types=[DataType.QUOTE],
+    #     sources=[DataSource.YAHOO_FINANCE],:
+    #     real_time=True,:
+    #     callback=lambda dpprint(f"Real-time: {dp.symbol} ${dp.price}")
+    # )
+    # await pipeline.start_real_time_feed(rt_request)
+
+    # Disconnect
+    await pipeline.disconnect_all_sources()
+    if __name__ == "__main__": # Run example:
+        pass
+asyncio.run(example_market_data_pipeline())

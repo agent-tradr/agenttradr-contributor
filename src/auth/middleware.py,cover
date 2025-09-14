@@ -1,0 +1,133 @@
+> from dataclasses import dataclass
+> from fastapi import Request
+> from typing import Optional, List
+  
+> """
+> Authentication middleware for AgentTradr platform.
+  
+> Handles JWT authentication, API key validation, and user context
+> creation for all protected routes.
+> """
+  
+  
+  
+> @dataclass
+> class AuthContext:
+>     """Authentication context for requests."""
+  
+>     user_id: str
+>     roles: List[str] = None
+>     permissions: List[str] = None
+>     scopes: List[str] = None
+>     is_authenticated: bool = False
+>     rate_limit: Optional[int] = None
+  
+>     def __post_init__(self):
+>         if self.roles is None:
+>             self.roles = []
+>         if self.permissions is None:
+>             self.permissions = []
+>         if self.scopes is None:
+>             self.scopes = []
+  
+  
+> class AuthenticationMiddleware:
+>     """Authentication middleware for FastAPI."""
+  
+>     def __init__(self, jwt_manager=None, api_key_manager=None):
+>         self.jwt_manager = jwt_manager
+>         self.api_key_manager = api_key_manager
+  
+>     async def __call__(self, scope, receive, send):
+>         """ASGI callable."""
+!         pass
+  
+>     def authenticate_request(self, request: Request) -> Optional[AuthContext]:
+>         """Authenticate an incoming request."""
+          # Try JWT authentication first
+!         jwt_context = self._authenticate_jwt(request)
+!         if jwt_context:
+!             return jwt_context
+  
+          # Try API key authentication
+!         api_key_context = self._authenticate_api_key(request)
+!         if api_key_context:
+!             return api_key_context
+  
+!         return None
+  
+>     def _authenticate_jwt(self, request: Request) -> Optional[AuthContext]:
+>         """Authenticate using JWT token."""
+>         if not self.jwt_manager:
+>             return None
+  
+          # Extract token from Authorization header
+>         auth_header = request.headers.get("Authorization")
+>         if not auth_header or not auth_header.startswith("Bearer "):
+>             return None
+          
+>         token = auth_header[7:]  # Remove "Bearer " prefix
+  
+>         try:
+              # Validate token
+>             payload = self.jwt_manager.decode_token(token)
+>             if not payload:
+>                 return None
+  
+>             return AuthContext(
+>                 user_id=payload.get("sub"),
+>                 roles=payload.get("roles", []),
+>                 permissions=payload.get("permissions", []),
+>                 scopes=payload.get("scopes", []),
+>                 is_authenticated=True,
+>             )
+>         except Exception:
+>             return None
+  
+>     def _authenticate_api_key(self, request: Request) -> Optional[AuthContext]:
+>         """Authenticate using API key."""
+!         if not self.api_key_manager:
+!             return None
+  
+          # Check for API key in headers
+!         api_key = request.headers.get("X-API-Key")
+!         if not api_key:
+!             return None
+  
+!         try:
+              # Validate API key
+!             user_info = self.api_key_manager.validate_key(api_key)
+!             if not user_info:
+!                 return None
+  
+!             return AuthContext(
+!                 user_id=user_info.get("user_id"),
+!                 roles=user_info.get("roles", []),
+!                 permissions=user_info.get("permissions", []),
+!                 is_authenticated=True,
+!             )
+!         except Exception:
+!             return None
+  
+  
+> class RateLimitMiddleware:
+>     """Rate limiting middleware."""
+  
+>     pass
+  
+>     def __init__(self, default_limit: int = 100):
+>         self.default_limit = default_limit
+  
+>     async def __call__(self, scope, receive, send):
+>         """ASGI callable."""
+!         pass
+  
+>     def check_rate_limit(self, user_id: str, limit: Optional[int] = None) -> bool:
+>         """Check if user is within rate limit."""
+          # Basic implementation - always pass for now
+!         return True
+  
+  
+  # Create default instances
+> default_auth_middleware = AuthenticationMiddleware()
+> default_rate_limit_middleware = RateLimitMiddleware()

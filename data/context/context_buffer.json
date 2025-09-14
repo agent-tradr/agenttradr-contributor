@@ -1,0 +1,232 @@
+{
+  "timestamp": "2025-08-27T20:40:56.452234",
+  "window_size": 10,
+  "importance_threshold": 0.7,
+  "buffer": {
+    "size": 10,
+    "entries": [
+      {
+        "decision": {
+          "id": "test_0",
+          "type": "buy",
+          "action": "execute",
+          "confidence": 0.5,
+          "symbol": null,
+          "quantity": null,
+          "reasoning": [],
+          "timestamp": "2025-08-27T20:40:56.451965",
+          "outcome": null,
+          "metadata": {}
+        },
+        "importance_score": 0.5800000000000001,
+        "timestamp": "2025-08-27T20:40:56.451973",
+        "market_context": {
+          "timestamp": "2025-08-27T20:40:56.451974",
+          "volatility": 0.25864899282007847,
+          "trend": "bearish",
+          "volume": 6456563,
+          "regime": "volatile"
+        },
+        "compressed": false,
+        "embedding": [
+          0.0,
+          0.5,
+          0.0,
+          0.0,
+          0.8333333134651184,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "decision": {
+          "id": "test_1",
+          "type": "sell",
+          "action": "execute",
+          "confidence": 0.6,
+          "symbol": null,
+          "quantity": null,
+          "reasoning": [],
+          "timestamp": "2025-08-27T20:40:56.452047",
+          "outcome": null,
+          "metadata": {}
+        },
+        "importance_score": 0.6100000000000001,
+        "timestamp": "2025-08-27T20:40:56.452051",
+        "market_context": {
+          "timestamp": "2025-08-27T20:40:56.452051",
+          "volatility": 0.3815391654806437,
+          "trend": "bullish",
+          "volume": 4840534,
+          "regime": "volatile"
+        },
+        "compressed": false,
+        "embedding": [
+          0.0,
+          0.6000000238418579,
+          0.0,
+          0.0,
+          0.8333333134651184,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "decision": {
+          "id": "test_2",
+          "type": "buy",
+          "action": "execute",
+          "confidence": 0.7,
+          "symbol": null,
+          "quantity": null,
+          "reasoning": [],
+          "timestamp": "2025-08-27T20:40:56.452073",
+          "outcome": null,
+          "metadata": {}
+        },
+        "importance_score": 0.54,
+        "timestamp": "2025-08-27T20:40:56.452077",
+        "market_context": {
+          "timestamp": "2025-08-27T20:40:56.452077",
+          "volatility": 0.4596649866527205,
+          "trend": "neutral",
+          "volume": 5472254,
+          "regime": "volatile"
+        },
+        "compressed": false,
+        "embedding": [
+          0.0,
+          0.699999988079071,
+          0.0,
+          0.0,
+          0.8333333134651184,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "decision": {
+          "id": "test_3",
+          "type": "sell",
+          "action": "execute",
+          "confidence": 0.8,
+          "symbol": null,
+          "quantity": null,
+          "reasoning": [],
+          "timestamp": "2025-08-27T20:40:56.452095",
+          "outcome": null,
+          "metadata": {}
+        },
+        "importance_score": 0.6033333333333334,
+        "timestamp": "2025-08-27T20:40:56.452098",
+        "market_context": {
+          "timestamp": "2025-08-27T20:40:56.452098",
+          "volatility": 0.30048948831350614,
+          "trend": "bearish",
+          "volume": 7853271,
+          "regime": "volatile"
+        },
+        "compressed": false,
+        "embedding": [
+          0.0,
+          0.800000011920929,
+          0.0,
+          0.0,
+          0.8333333134651184,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "decision": {
+          "id": "test_4",
+          "type": "buy",
+          "action": "execute",
+          "confidence": 0.9,
+          "symbol": null,
+          "quantity": null,
+          "reasoning": [],
+          "timestamp": "2025-08-27T20:40:56.452118",
+          "outcome": null,
+          "metadata": {}
+        },
+        "importance_score": 0.6000000000000001,
+        "timestamp": "2025-08-27T20:40:56.452120",
+        "market_context": {
+          "timestamp": "2025-08-27T20:40:56.452122",
+          "volatility": 0.2716309131405824,
+          "trend": "bullish",
+          "volume": 8119087,
+          "regime": "trending"
+        },
+        "compressed": false,
+        "embedding": [
+          0.0,
+          0.8999999761581421,
+          0.0,
+          0.0,
+          0.8333333134651184,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "importance_index": {
+      "test_0": 0.5800000000000001,
+      "test_1": 0.6100000000000001,
+      "test_2": 0.54,
+      "test_3": 0.6033333333333334,
+      "test_4": 0.6000000000000001
+    }
+  },
+  "statistics": {
+    "total_decisions": 5,
+    "pruned_decisions": 0,
+    "compressed_decisions": 0
+  }
+}

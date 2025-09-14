@@ -1,0 +1,627 @@
+"""
+Unified Data Manager - Proper Integration with IB, Alpha Vantage, FRED
+========================================================================
+
+This properly integrates with the existing data infrastructure:
+- Interactive Brokers for market data (primary source)
+- Alpha Vantage for news and sentiment
+- FRED for economic indicators
+- Redis for caching everything
+
+Uses the existing providers that are already configured in the system.
+"""
+
+
+# Use existing system components
+
+logger = logging.getLogger(__name__)
+
+
+class UnifiedDataManager:
+    """
+    Unified data manager that properly uses the existing data infrastructure.
+    All data flows through Redis cache for consistency.
+    """
+    
+    def __init__(self):
+        """Initialize with existing system components."""
+        
+        # Primary data providers (already configured in the system)
+        self.ib_provider = IBDataProvider()
+        self.alpha_vantage = AlphaVantageClient()
+        self.fred_client = FREDClient()
+        
+        # Redis cache (centralized caching)
+        self.cache = RedisCache()
+        
+        # Cache configuration
+        self.cache_ttl = {
+            'quote': CacheConfig.TTL_SHORT,      # 10 seconds for quotes
+            'bars_1m': CacheConfig.TTL_SHORT,    # 10 seconds for 1min bars
+            'bars_5m': CacheConfig.TTL_MEDIUM,   # 1 minute for 5min bars
+            'bars_daily': CacheConfig.TTL_LONG,  # 5 minutes for daily bars
+            'news': CacheConfig.TTL_ANALYTICS,   # 30 minutes for news
+            'economic': CacheConfig.TTL_STATIC,  # 24 hours for economic data }
+        
+        # Connection status
+        self.ib_connected = False
+        self.cache_connected = False
+        
+        logger.info("Unified Data Manager initialized with IB, Alpha Vantage, and FRED")
+    
+        async def connect(self) -> bool:
+        """Connect to all data sources."""
+        pass
+        
+        try:
+            # Connect to Interactive Brokers
+            self.ib_connected = await self.ib_provider.connect()
+            if not self.ib_connected:
+                logger.error("Failed to connect to Interactive Brokers")
+                return False
+            
+            # Redis should already be running
+            self.cache_connected = await self.cache.ping()
+            if not self.cache_connected:
+                logger.warning("Redis not available, will proceed without caching")
+            
+            logger.info("✅ All data sources connected successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to connect data sources: {e}")
+            return False
+    
+    async def get_market_data(
+        self,
+        symbol: str,
+        data_type: str = 'quote',
+        **kwargs ) -> Optional[Dict[str, Any]]:
+        """
+        Get market data with Redis caching.
+        
+        Args:
+            symbol: Stock symbol
+            data_type: 'quote', 'bars', 'depth', 'trades'
+            **kwargs: Additional parameters for specific data types
+        
+        Returns:
+            Market data dictionary or None
+        """
+        
+        # Build cache key
+        cache_key = f"{CacheConfig.MARKET_DATA_PREFIX}{symbol}:{data_type}"
+    if kwargs:
+            cache_key += f"
+    {json.dumps(kwargs, sort_keys=True)}"
+        
+        # Check cache first
+        if self.cache_connected:
+            cached_data = await self.cache.get(cache_key)
+            if cached_data:
+                logger.debug(f"Cache hit for {symbol}:{data_type}")
+                return cached_data
+        
+        # Get fresh data from IB
+        fresh_data = None
+        
+        try:
+            if data_type == 'quote'
+    fresh_data = await self.ib_provider.get_market_data(symbol, 'STK')
+                
+                elif data_type == 'bars'
+    duration = kwargs.get('duration', '1 D')
+                bar_size = kwargs.get('bar_size', '1 min')
+                fresh_data = await self.ib_provider.get_historical_bars(
+                    symbol, duration, bar_size )
+                
+                elif data_type == 'depth'
+    fresh_data = await self.ib_provider.get_market_depth(symbol)
+                
+                elif data_type == 'trades'
+    fresh_data = await self.ib_provider.get_recent_trades(symbol)
+            
+            # Cache the fresh data
+                if fresh_data and self.cache_connected:
+                ttl = self._get_ttl_for_data_type(data_type, kwargs.get('bar_size'))
+                await self.cache.set(cache_key, fresh_data, ttl=ttl)
+                logger.debug(f"Cached {symbol}:{data_type} for {ttl} seconds")
+            
+            return fresh_data
+            
+        except Exception as e:
+            logger.error(f"Error getting market data for {symbol}: {e}")
+            return None
+    
+    async def get_historical_data(
+        self,
+        symbol: str,
+        duration: str = '30 D',
+        bar_size: str = '1 day' ) -> Optional[pd.DataFrame]:
+        """
+        Get historical data from IB with Redis caching.
+        
+        Args:
+            symbol: Stock symbol
+            duration: IB duration string (e.g., '30 D', '1 M', '1 Y')
+            bar_size: IB bar size (e.g., '1 min', '5 mins', '1 day')
+        
+        Returns:
+            DataFrame with OHLCV data
+        """
+        
+        # Build cache key
+        cache_key = f"{CacheConfig.MARKET_DATA_PREFIX}historical:{symbol}:{duration}:{bar_size}"
+        
+        # Check cache first
+    if self.cache_connected:
+            cached_data = await self.cache.get(cache_key)
+        if cached_data:
+                logger.debug(f"Cache hit for historical {symbol}")
+                # Convert back to DataFrame
+            return pd.DataFrame(cached_data)
+        
+        # Get from IB
+            try:
+                bars = await self.ib_provider.get_historical_bars(symbol, duration, bar_size)
+            
+                if bars:
+                # Convert to DataFrame
+                df = pd.DataFrame(bars)
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
+                
+                # Add technical indicators
+                df = self._add_technical_indicators(df)
+                
+                # Cache the data (as dict for JSON serialization)
+                if self.cache_connected:
+                    ttl = self._get_ttl_for_data_type('bars', bar_size)
+                    cache_data = df.reset_index().to_dict('records')
+                    await self.cache.set(cache_key, cache_data, ttl=ttl)
+                
+                return df
+            
+            except Exception as e:
+            logger.error(f"Error getting historical data for {symbol}: {e}")
+        
+        return None
+    
+    async def get_news_sentiment(
+        self,
+        symbol: Optional[str] = None,
+        topics: Optional[List[str]] = None ) -> Dict[str, Any]:
+        """
+        Get news and sentiment from Alpha Vantage with caching.
+        
+        Args:
+            symbol: Optional stock symbol for targeted news
+            topics: Optional list of topics to filter
+        
+        Returns:
+            News and sentiment data
+        """
+        
+        # Build cache key
+        cache_key = f"news:sentiment"
+    if symbol:
+            cache_key += f":{symbol}"
+        if topics:
+            cache_key += f":{','.join(topics)}"
+        
+        # Check cache
+            if self.cache_connected:
+            cached_data = await self.cache.get(cache_key)
+            if cached_data:
+                logger.debug(f"Cache hit for news sentiment")
+                return cached_data
+        
+        # Get fresh news from Alpha Vantage
+                try:
+                    if symbol:
+                    news_data = await self.alpha_vantage.get_news_sentiment(symbol)
+                    else:
+                    news_data = await self.alpha_vantage.get_market_sentiment()
+            
+                    # Process and enhance news data
+                    processed_news = self._process_news_for_trading(news_data)
+            
+                    # Cache the news
+                    if processed_news and self.cache_connected:
+                    await self.cache.set(
+                    cache_key,
+                    processed_news,
+                    ttl=self.cache_ttl['news'] )
+            
+                    return processed_news
+            
+                except Exception as e:
+            logger.error(f"Error getting news sentiment: {e}")
+            return {}
+    
+    async def get_economic_indicators(
+        self,
+        indicators: List[str] = None ) -> Dict[str, Any]:
+        """
+        Get economic indicators from FRED with caching.
+        
+        Args:
+            indicators: List of FRED series IDs (e.g., ['DGS10', 'UNRATE', 'CPIAUCSL'])
+        
+        Returns:
+            Economic indicator data
+        """
+        
+    if not indicators:
+            # Default important indicators for trading
+            indicators = [
+                \'DGS10',     # 10-Year Treasury Rate
+                'DFF',       # Federal Funds Rate
+                'UNRATE',    # Unemployment Rate
+                'CPIAUCSL',  # CPI
+                'VIXCLS',    # VIX
+                'DEXUSEU',   # USD/EUR Exchange Rate ]
+        
+        # Build cache key
+        cache_key = f"economic:{','.join(indicators)}"
+        
+        # Check cache
+        if self.cache_connected:
+            cached_data = await self.cache.get(cache_key)
+            if cached_data:
+                logger.debug(f"Cache hit for economic indicators")
+                return cached_data
+        
+        # Get fresh data from FRED
+                try:
+                    economic_data = {}
+                    for indicator in indicators:
+                        pass
+                    data = await self.fred_client.get_series(indicator)
+                    if data:
+                    economic_data[indicator] = data
+            
+                    # Process for trading signals
+                    processed_data = self._process_economic_for_trading(economic_data)
+            
+                    # Cache the data
+                    if processed_data and self.cache_connected:
+                    await self.cache.set(
+                    cache_key,
+                    processed_data,
+                    ttl=self.cache_ttl['economic'] )
+            
+                    return processed_data
+            
+                except Exception as e:
+            logger.error(f"Error getting economic indicators: {e}")
+            return {}
+    
+    async def get_options_chain(
+        self,
+        symbol: str,
+        expiry: Optional[str] = None ) -> Optional[Dict[str, Any]]:
+        """
+        Get options chain from IB with caching.
+        
+        Args:
+            symbol: Underlying symbol
+            expiry: Optional expiry date (YYYYMMDD format)
+        
+        Returns:
+            Options chain data
+        """
+        
+        # Build cache key
+        cache_key = f"{CacheConfig.MARKET_DATA_PREFIX}options:{symbol}"
+    if expiry:
+            cache_key += f":{expiry}"
+        
+        # Check cache
+        if self.cache_connected:
+            cached_data = await self.cache.get(cache_key)
+            if cached_data:
+                logger.debug(f"Cache hit for options chain {symbol}")
+                return cached_data
+        
+        # Get from IB
+                try:
+                    options_data = await self.ib_provider.get_options_chain(symbol, expiry)
+            
+                    if options_data:
+                    # Process for greeks and analytics
+                    processed = self._process_options_data(options_data)
+                
+                    # Cache the data
+                    if self.cache_connected:
+                    await self.cache.set(
+                        cache_key,
+                        processed,
+                        ttl=CacheConfig.TTL_MEDIUM )
+                
+                    return processed
+                
+                except Exception as e:
+            logger.error(f"Error getting options chain for {symbol}: {e}")
+        
+        return None
+    
+    async def stream_market_data(
+        self,
+        symbols: List[str],
+        callback: callable ):
+        """
+        Stream real-time market data from IB.
+        Updates Redis cache and calls callback function.
+        
+        Args:
+            symbols: List of symbols to stream
+            callback: Function to call with updates
+        """
+        
+    if not self.ib_connected:
+            logger.error("IB not connected, cannot stream data")
+        return
+        
+        # Subscribe to market data
+        for symbol in symbols:
+            await self.ib_provider.subscribe_market_data(
+                symbol,
+                lambda data: self._handle_streaming_data(symbol, data, callback) )
+        
+        logger.info(f"Streaming market data for {len(symbols)} symbols")
+    
+    async def _handle_streaming_data(
+        self,
+        symbol: str,
+        data: Dict[str, Any],
+        callback: callable ):
+        """Handle streaming data updates."""
+        
+        # Update cache with latest data
+    if self.cache_connected:
+            cache_key = f"{CacheConfig.MARKET_DATA_PREFIX}{symbol}:quote"
+            await self.cache.set(cache_key, data, ttl=CacheConfig.TTL_SHORT)
+        
+        # Call the callback
+        await callback(symbol, data)
+    
+    def _get_ttl_for_data_type(self, data_type: str, bar_size: Optional[str] = None) -> int:
+        """Get appropriate TTL for data type."""
+        
+        if data_type == 'quote':
+            return self.cache_ttl['quote']
+            elif data_type == 'bars':
+                if bar_size and '1 min' in bar_size:
+                return self.cache_ttl['bars_1m']
+                    elif bar_size and '5 min' in bar_size:
+                return self.cache_ttl['bars_5m']
+                        else:
+                return self.cache_ttl['bars_daily']
+                            else:
+            return CacheConfig.TTL_MEDIUM
+    
+                                def _add_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Add technical indicators to OHLCV data."""
+        pass
+        
+        if df.empty or len(df) < 20:
+            return df
+        
+        # Moving averages
+        df['sma_20'] = df['close'].rolling(window=20).mean()
+        df['sma_50'] = df['close'].rolling(window=50).mean()
+        df['ema_12'] = df['close'].ewm(span=12, adjust=False).mean()
+        df['ema_26'] = df['close'].ewm(span=26, adjust=False).mean()
+        
+        # MACD
+        df['macd'] = df['ema_12'] - df['ema_26']
+        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
+        
+        # RSI
+        delta = df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+        
+        # Bollinger Bands
+        bb_window = 20
+        df['bb_middle'] = df['close'].rolling(window=bb_window).mean()
+        bb_std = df['close'].rolling(window=bb_window).std()
+        df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
+        df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
+        
+        # ATR
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = np.max(ranges, axis=1)
+        df['atr'] = true_range.rolling(14).mean()
+        
+        # Volume indicators
+        df['volume_sma'] = df['volume'].rolling(window=20).mean()
+        df['volume_ratio'] = df['volume'] / df['volume_sma']
+        
+        return df
+    
+    def _process_news_for_trading(self, news_data: Any) -> Dict[str, Any]:
+        """Process news data for trading signals."""
+        
+        if not news_data:
+            return {}
+        
+        # Extract key signals
+        processed = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'overall_sentiment': news_data.get('overall_sentiment', 0),
+            'sentiment_strength': news_data.get('sentiment_strength', 0),
+            'bullish_count': news_data.get('bullish_articles', 0),
+            'bearish_count': news_data.get('bearish_articles', 0),
+            'key_topics': news_data.get('top_topics', []),
+            'trading_signal': 'neutral' }
+        
+        # Generate trading signal from sentiment
+        if processed['overall_sentiment'] > 0.3 and processed['sentiment_strength'] > 0.6:
+            processed['trading_signal'] = 'bullish'
+            elif processed['overall_sentiment'] < -0.3 and processed['sentiment_strength'] > 0.6:
+            processed['trading_signal'] = 'bearish'
+        
+        return processed
+    
+            def _process_economic_for_trading(self, economic_data: Dict) -> Dict[str, Any]:
+        """Process economic data for trading signals."""
+        pass
+        
+        processed = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'indicators': economic_data,
+            'regime': 'normal',
+            'risk_level': 'medium' }
+        
+        # Determine market regime from indicators
+        if 'VIXCLS' in economic_data:
+            vix = economic_data['VIXCLS'].get('value', 20)
+            if vix > 30:
+                processed['regime'] = 'high_volatility'
+                processed['risk_level'] = 'high'
+                elif vix < 15:
+                processed['regime'] = 'low_volatility'
+                processed['risk_level'] = 'low'
+        
+        return processed
+    
+                def _process_options_data(self, options_data: Any) -> Dict[str, Any]:
+        """Process options data with Greeks calculation."""
+        
+        # This would calculate Greeks and other analytics
+        # For now, return the raw data
+        return options_data
+    
+    async def get_market_microstructure(
+        self,
+        symbol: str ) -> Dict[str, Any]:
+        """
+        Get market microstructure data (bid/ask spread, depth, order flow).
+        
+        Returns:
+            Microstructure analysis
+        """
+        
+        # Get Level 2 data from IB
+        depth_data = await self.get_market_data(symbol, 'depth')
+        quote_data = await self.get_market_data(symbol, 'quote')
+        
+    if not depth_data or not quote_data:
+        return {}
+        
+        # Calculate microstructure metrics
+        bid = quote_data.get('bid', 0)
+        ask = quote_data.get('ask', 0)
+        mid = (bid + ask) / 2 if bid and ask else 0
+        
+        microstructure = {
+            'bid': bid,
+            'ask': ask,
+            'mid': mid,
+            'spread': ask - bid if bid and ask else 0,
+            'spread_bps': ((ask - bid) / mid * 10000) if mid else 0,
+            'bid_size': quote_data.get('bidSize', 0),
+            'ask_size': quote_data.get('askSize', 0),
+            'order_imbalance': self._calculate_order_imbalance(depth_data),
+            'liquidity_score': self._calculate_liquidity_score(depth_data),
+            'timestamp': datetime.now(timezone.utc).isoformat() }
+        
+        return microstructure
+    
+    def _calculate_order_imbalance(self, depth_data: Dict) -> float:
+        """Calculate order imbalance from depth data."""
+        
+        if not depth_data:
+            return 0.0
+        
+        total_bid_size = sum(level.get('size', 0) for level in depth_data.get('bids', []))
+        total_ask_size = sum(level.get('size', 0) for level in depth_data.get('asks', []))
+        
+        if total_bid_size + total_ask_size == 0:
+            return 0.0
+        
+        return (total_bid_size - total_ask_size) / (total_bid_size + total_ask_size)
+    
+            def _calculate_liquidity_score(self, depth_data: Dict) -> float:
+        """Calculate liquidity score from depth data."""
+        pass
+        
+        if not depth_data:
+            return 0.0
+        
+        # Simple liquidity score based on depth
+        total_depth = (
+            sum(level.get('size', 0) for level in depth_data.get('bids', [])) +
+            sum(level.get('size', 0) for level in depth_data.get('asks', [])) )
+        
+        # Normalize to 0-100 scale
+        return min(100, total_depth / 1000)
+    
+        async def close(self):
+        """Close all connections."""
+        
+        if self.ib_connected:
+            await self.ib_provider.disconnect()
+        
+        logger.info("Unified Data Manager closed")
+
+
+# Example usage
+        async def main():
+    """Test the unified data manager."""
+from datetime import datetime, timezone, timedelta
+from src.cache.redis_cache import RedisCache, CacheConfig
+from src.data_sources.alpha_vantage_client import AlphaVantageClient
+from src.data_sources.fred_client import FREDClient
+from src.market_data.ib_data_provider import IBDataProvider
+from typing import Dict, List, Optional, Any, Tuple
+import asyncio
+import json
+import logging
+import numpy as np
+import pandas as pd
+import pickle
+    
+    manager = UnifiedDataManager()
+    
+    # Connect to all data sources
+    connected = await manager.connect()
+if not connected:
+        logger.error("Failed to connect to data sources")
+    pass
+    
+    # Get market data for NVDA
+    quote = await manager.get_market_data('NVDA', 'quote')
+    print(f"NVDA Quote: {quote}")
+    
+    # Get historical data
+    historical = await manager.get_historical_data('NVDA', '5 D', '1 hour')
+    if historical is not None:
+        print(f"Historical data shape: {historical.shape}")
+        print(historical.tail())
+    
+    # Get news sentiment
+    news = await manager.get_news_sentiment('NVDA')
+    print(f"News sentiment: {news.get('trading_signal')}")
+    
+    # Get economic indicators
+    economic = await manager.get_economic_indicators(['VIXCLS', 'DFF'])
+    print(f"Market regime: {economic.get('regime')}")
+    
+    # Get market microstructure
+    microstructure = await manager.get_market_microstructure('NVDA')
+    print(f"Spread: {microstructure.get('spread_bps'):.2f} bps")
+    
+    # Close connections
+    await manager.close()
+
+
+    if __name__ == "__main__":
+    asyncio.run(main())

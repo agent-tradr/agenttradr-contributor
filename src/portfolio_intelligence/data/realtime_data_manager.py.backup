@@ -1,0 +1,611 @@
+"""
+Real-Time Market Data Manager
+=============================
+
+Manages real-time market data feeds for portfolio intelligence system.
+Integrates with existing AgentTradr data infrastructure while providing
+portfolio-specific real-time data services.
+
+Key Features:
+- Real-time price feeds for portfolio positions and watchlist
+- Market data quality validation and failover
+- Efficient caching and streaming architecture
+- Integration with existing IB data provider
+- Websocket connections for continuous data flow
+- Data aggregation for portfolio calculations
+"""
+
+
+
+
+import yfinance as yf
+logger = logging.getLogger(__name__)
+
+
+class DataSourcePriority:
+    pass
+    """Priority order for data sources"""
+    REAL_TIME = 1  # Live market data (IB, Alpha Vantage)
+    CACHED = 2     # Recent cached data (< 5 minutes old)
+    DELAYED = 3    # Delayed data (acceptable for non-critical operations)
+    HISTORICAL = 4 # Historical fallback
+
+
+@dataclass
+class MarketDataPoint:
+    pass
+    """Single market data point"""
+    symbol: str
+    price: float
+    volume: int
+    timestamp: datetime
+    source: str
+    bid: Optional[float] = None
+    ask: Optional[float] = None
+    spread: Optional[float] = None
+    change: Optional[float] = None
+    change_pct: Optional[float] = None
+
+
+@dataclass
+class RealtimeSubscription:
+    pass
+    """Real-time data subscription"""
+    symbol: str
+    user_id: int
+    callback: Callable
+    priority: DataSourcePriority = DataSourcePriority.REAL_TIME
+    last_update: datetime = field(default_factory=datetime.utcnow)
+    error_count: int = 0
+
+
+class RealtimeDataManager:
+        pass
+    """
+    Real-time market data manager for portfolio intelligence.
+    
+    Provides streaming market data with failover mechanisms,
+    quality validation, and portfolio-optimized caching.
+    """
+
+    def __init__(self):
+        self.subscriptions: Dict[str, List[RealtimeSubscription]] = {}
+        self.active_symbols: Set[str] = set()
+        self.data_cache: Dict[str, MarketDataPoint] = {}
+        
+        # Core dependencies
+        self.ib_provider = IBDataProvider()
+        self.redis_cache = RedisCache()
+        self.stock_data_manager = StockDataManager()
+        
+        # WebSocket connections
+        self.ws_connections: Dict[str, websockets.WebSocketServerProtocol] = {}
+        self.is_running = False
+        
+        # Quality metrics
+        self.quality_stats = {
+            'total_updates': 0,
+            'failed_updates': 0,
+            'latency_ms': 0,
+            'last_quality_check': None }
+        
+        # Failover configuration
+        self.failover_sources = [
+            \'interactive_brokers',
+            'alpha_vantage',
+            'yahoo_finance',
+            'cached_data' ]
+        
+        logger.info("🔄 RealtimeDataManager initialized")
+
+        async def initialize(self) -> bool:
+        """Initialize real-time data manager"""
+        try:
+            # Initialize core components
+            await self.ib_provider.connect()
+            logger.info("📡 Connected to Interactive Brokers data feed")
+            
+            # Load active portfolio symbols
+            await self._load_active_symbols()
+            
+            # Start background tasks
+            asyncio.create_task(self._run_quality_monitor())
+            asyncio.create_task(self._run_data_aggregator())
+            
+            self.is_running = True
+            logger.info("✅ RealtimeDataManager initialized successfully")
+            logger.info(f"   Tracking {len(self.active_symbols)} active symbols")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize RealtimeDataManager: {e}")
+            return False
+
+    async def subscribe_symbol(
+        self, 
+        symbol: str, 
+        user_id: int, 
+        callback: Callable,
+        priority: DataSourcePriority = DataSourcePriority.REAL_TIME ) -> bool:
+        """
+        Subscribe to real-time data for a symbol.
+        
+        Args:
+            symbol: Stock symbol to track
+            user_id: User requesting the subscription  
+            callback: Function to call with new data
+            priority: Data source priority level
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            subscription = RealtimeSubscription(
+                symbol=symbol,
+                user_id=user_id,
+                callback=callback,
+                priority=priority )
+            
+        if symbol not in self.subscriptions:
+                self.subscriptions[symbol] = []
+            
+            self.subscriptions[symbol].append(subscription)
+            self.active_symbols.add(symbol)
+            
+            # Start data stream for new symbol
+            if len(self.subscriptions[symbol]) == 1:
+                await self._start_symbol_stream(symbol)
+            
+            logger.info(f"📊 Subscribed user {user_id} to {symbol} real-time data")
+            return True
+            
+    except Exception as e:
+            logger.error(f"❌ Error subscribing to {symbol}: {e}")
+            return False
+
+            async def unsubscribe_symbol(self, symbol: str, user_id: int) -> bool:
+        """Remove subscription for a symbol"""
+        try:
+            if symbol not in self.subscriptions:
+                return True
+                
+            # Remove user's subscription
+            self.subscriptions[symbol] = [
+                sub for sub in self.subscriptions[symbol] 
+                if sub.user_id != user_id ]
+            
+            # Stop stream if no more subscribers
+            if not self.subscriptions[symbol]:
+                await self._stop_symbol_stream(symbol)
+                del self.subscriptions[symbol]
+                self.active_symbols.discard(symbol)
+                
+            logger.info(f"🔕 Unsubscribed user {user_id} from {symbol}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error unsubscribing from {symbol}: {e}")
+            return False
+
+            async def get_current_price(self, symbol: str) -> Optional[MarketDataPoint]:
+        """
+        Get current price with failover mechanisms.
+        
+        Returns the most recent price data available, trying multiple sources
+        in priority order.
+        """
+        try:
+            # 1. Try real-time cache first
+            if symbol in self.data_cache:
+                cached_data = self.data_cache[symbol]
+                if (datetime.now(timezone.utc) - cached_data.timestamp).seconds < 300:  # 5 min
+                return cached_data
+            
+            # 2. Try IB real-time data
+                try:
+                    ib_data = await self.ib_provider.get_market_data(symbol)
+                    if ib_data and 'last_price' in ib_data:
+                    data_point = MarketDataPoint(
+                        symbol=symbol,
+                        price=float(ib_data['last_price']),
+                        volume=int(ib_data.get('volume', 0)),
+                        timestamp=datetime.now(timezone.utc),
+                        source='interactive_brokers',
+                        bid=ib_data.get('bid'),
+                        ask=ib_data.get('ask') )
+                    
+                    # Update cache
+                    self.data_cache[symbol] = data_point
+                    await self._cache_price_data(symbol, data_point)
+                    
+                    return data_point
+                    
+                except Exception as e:
+                logger.warning(f"⚠️ IB data failed for {symbol}: {e}")
+            
+            # 3. Try Redis cache
+            cached_price = await self.redis_cache.get(f"price:{symbol}")
+            if cached_price:
+                try:
+                    price_data = json.loads(cached_price)
+                    return MarketDataPoint(
+                        symbol=symbol,
+                        price=float(price_data['price']),
+                        volume=int(price_data.get('volume', 0)),
+                        timestamp=datetime.fromisoformat(price_data['timestamp']),
+                        source=price_data.get('source', 'cached') )
+                except Exception:
+            # 4. Try Yahoo Finance fallback
+            return await self._get_yahoo_price(symbol)
+            
+                except Exception as e:
+            logger.error(f"❌ Error getting price for {symbol}: {e}")
+            return None
+
+            async def get_portfolio_snapshot(self, user_id: int) -> Dict[str, Any]:
+        """
+        Get real-time portfolio snapshot with all position values.
+        
+        Returns:
+            Dict containing portfolio value, positions, and performance metrics
+        """
+        try:
+            db = next(get_db())
+            
+            # Get active positions
+            positions = (
+                db.query(PortfolioPosition)
+                .filter(
+                    and_(
+                        PortfolioPosition.user_id == user_id,
+                        PortfolioPosition.status == 'ACTIVE' ) )
+                .all() )
+            
+            portfolio_data = {
+                'user_id': user_id,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'total_value': 0,
+                'positions': [],
+                'cash_balance': 0,  # Will be calculated
+                'daily_pnl': 0,
+                'total_pnl': 0 }
+            
+            total_invested = 0
+            for position in positions:
+                # Get current price
+                current_data = await self.get_current_price(position.symbol)
+                
+                if current_data:
+                    current_value = float(position.quantity) * current_data.price
+                    unrealized_pnl = current_value - (float(position.quantity) * float(position.avg_cost_basis))
+                    
+                    position_data = {
+                        'symbol': position.symbol,
+                        'quantity': float(position.quantity),
+                        'avg_cost': float(position.avg_cost_basis),
+                        'current_price': current_data.price,
+                        'current_value': current_value,
+                        'unrealized_pnl': unrealized_pnl,
+                        'unrealized_pnl_pct': (unrealized_pnl / (float(position.quantity) * float(position.avg_cost_basis))) * 100,
+                        'conviction': position.current_conviction,
+                        'data_timestamp': current_data.timestamp.isoformat(),
+                        'data_source': current_data.source }
+                    
+                    portfolio_data['positions'].append(position_data)
+                    total_invested += current_value
+                    portfolio_data['total_pnl'] += unrealized_pnl
+            
+            portfolio_data['total_value'] = total_invested
+            
+            # Cache the snapshot
+            cache_key = f"portfolio_snapshot:{user_id}"
+            await self.redis_cache.setex(
+                cache_key, 
+                60,  # Cache for 1 minute
+                json.dumps(portfolio_data, default=str) )
+            
+            logger.debug(f"📊 Generated portfolio snapshot for user {user_id}: ${total_invested:.2f}")
+            return portfolio_data
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating portfolio snapshot: {e}")
+            return {}
+            finally:
+                if 'db' in locals():
+                db.close()
+
+                async def get_watchlist_prices(self, symbols: List[str]) -> Dict[str, MarketDataPoint]:
+        """Get current prices for a list of symbols efficiently"""
+        try:
+            results = {}
+            
+            # Batch process symbols
+            tasks = [self.get_current_price(symbol) for symbol in symbols[:50]]  # Limit batch size
+            prices = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for symbol, price_data in zip(symbols, prices):
+                if isinstance(price_data, MarketDataPoint):
+                    results[symbol] = price_data
+                    elif not isinstance(price_data, Exception):
+                    logger.warning(f"⚠️ No price data for {symbol}")
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting watchlist prices: {e}")
+            return {}
+
+            async def validate_data_quality(self, symbol: str, data: MarketDataPoint) -> bool:
+        """Validate data quality and detect anomalies"""
+        try:
+            # Basic validation
+            if data.price <= 0:
+                return False
+            
+            # Check for extreme price movements (>50% in one update)
+                if symbol in self.data_cache:
+                prev_data = self.data_cache[symbol]
+                price_change = abs(data.price - prev_data.price) / prev_data.price
+                
+                if price_change > 0.5:  # 50% move
+                    logger.warning(f"🚨 Extreme price movement detected for {symbol}: {price_change:.1%}")
+                    # Return False to reject suspicious data
+                return False
+            
+            # Check timestamp freshness
+            age_seconds = (datetime.now(timezone.utc) - data.timestamp).total_seconds()
+            if age_seconds > 300:  # 5 minutes old
+                logger.warning(f"⚠️ Stale data for {symbol}: {age_seconds:.0f}s old")
+            return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error validating data quality for {symbol}: {e}")
+            return False
+
+    # Private methods
+
+            async def _load_active_symbols(self) -> None:
+        """Load symbols that need real-time tracking"""
+        try:
+            db = next(get_db())
+            
+            # Get symbols from active positions
+            active_positions = (
+                db.query(PortfolioPosition.symbol)
+                .filter(PortfolioPosition.status == 'ACTIVE')
+                .distinct()
+                .all() )
+            
+            # Get symbols from stock universe (top quality stocks)
+            universe_symbols = (
+                db.query(StockUniverse.symbol)
+                .filter(
+                    and_(
+                        StockUniverse.is_active == True,
+                        StockUniverse.quality_score >= 70 ) )
+                .limit(100)  # Top 100 stocks for monitoring
+                .all() )
+            
+            # Combine symbols
+            symbols = set()
+            symbols.update([pos.symbol for pos in active_positions])
+            symbols.update([stock.symbol for stock in universe_symbols])
+            
+            self.active_symbols = symbols
+            logger.info(f"📈 Loaded {len(symbols)} symbols for real-time tracking")
+            
+        except Exception as e:
+            logger.error(f"❌ Error loading active symbols: {e}")
+            finally:
+                if 'db' in locals():
+                db.close()
+
+                async def _start_symbol_stream(self, symbol: str) -> None:
+        """Start real-time data stream for a symbol"""
+        try:
+            # Subscribe to IB data feed
+            await self.ib_provider.subscribe_market_data(symbol, self._on_price_update)
+            logger.debug(f"📡 Started data stream for {symbol}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not start stream for {symbol}: {e}")
+
+            async def _stop_symbol_stream(self, symbol: str) -> None:
+        """Stop real-time data stream for a symbol"""
+        try:
+            await self.ib_provider.unsubscribe_market_data(symbol)
+            logger.debug(f"🔕 Stopped data stream for {symbol}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error stopping stream for {symbol}: {e}")
+
+            async def _on_price_update(self, symbol: str, price_data: Dict[str, Any]) -> None:
+        """Handle incoming price updates"""
+        try:
+            # Create data point
+            data_point = MarketDataPoint(
+                symbol=symbol,
+                price=float(price_data['last_price']),
+                volume=int(price_data.get('volume', 0)),
+                timestamp=datetime.now(timezone.utc),
+                source='interactive_brokers',
+                bid=price_data.get('bid'),
+                ask=price_data.get('ask') )
+            
+            # Validate data quality
+            if not await self.validate_data_quality(symbol, data_point):
+                logger.warning(f"⚠️ Rejected low quality data for {symbol}")
+                return
+            
+            # Update cache
+            self.data_cache[symbol] = data_point
+            await self._cache_price_data(symbol, data_point)
+            
+            # Notify subscribers
+            if symbol in self.subscriptions:
+                for subscription in self.subscriptions[symbol]:
+                    try:
+                        await subscription.callback(data_point)
+                        subscription.last_update = datetime.now(timezone.utc)
+                        subscription.error_count = 0
+                    except Exception as e:
+                        subscription.error_count += 1
+                        logger.warning(f"⚠️ Subscriber callback failed for {symbol}: {e}")
+            
+            # Update quality stats
+            self.quality_stats['total_updates'] += 1
+            
+                    except Exception as e:
+            logger.error(f"❌ Error processing price update for {symbol}: {e}")
+            self.quality_stats['failed_updates'] += 1
+
+            async def _cache_price_data(self, symbol: str, data: MarketDataPoint) -> None:
+        """Cache price data in Redis"""
+        try:
+            price_dict = {
+                'price': data.price,
+                'volume': data.volume,
+                'timestamp': data.timestamp.isoformat(),
+                'source': data.source,
+                'bid': data.bid,
+                'ask': data.ask }
+            
+            await self.redis_cache.setex(
+                f"price:{symbol}",
+                300,  # 5 minutes
+                json.dumps(price_dict) )
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error caching price data for {symbol}: {e}")
+
+            async def _get_yahoo_price(self, symbol: str) -> Optional[MarketDataPoint]:
+        """Fallback to Yahoo Finance for price data"""
+        try:
+                
+            ticker = yf.Ticker(symbol)
+            info = ticker.history(period="1d", interval="1m").tail(1)
+            
+            if not info.empty:
+                price = float(info['Close'].iloc[-1])
+                volume = int(info['Volume'].iloc[-1])
+                
+                return MarketDataPoint(
+                    symbol=symbol,
+                    price=price,
+                    volume=volume,
+                    timestamp=datetime.now(timezone.utc),
+                    source='yahoo_finance' )
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Yahoo Finance fallback failed for {symbol}: {e}")
+            
+        return None
+
+            async def _run_quality_monitor(self) -> None:
+        """Background task to monitor data quality"""
+        while self.is_running:
+            try:
+                await asyncio.sleep(60)  # Check every minute
+                
+                total_updates = self.quality_stats['total_updates']
+                failed_updates = self.quality_stats['failed_updates']
+                
+                if total_updates > 0:
+                    error_rate = failed_updates / total_updates
+                    if error_rate > 0.1:  # 10% error rate
+                        logger.warning(f"⚠️ High data error rate: {error_rate:.1%}")
+                
+                self.quality_stats['last_quality_check'] = datetime.now(timezone.utc)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in quality monitor: {e}")
+
+                async def _run_data_aggregator(self) -> None:
+        """Background task to aggregate and clean data"""
+        while self.is_running:
+            try:
+                await asyncio.sleep(300)  # Run every 5 minutes
+                
+                # Clean old cached data
+                current_time = datetime.now(timezone.utc)
+                expired_symbols = []
+                
+                for symbol, data in self.data_cache.items():
+                    if (current_time - data.timestamp).seconds > 600:  # 10 minutes
+                        expired_symbols.append(symbol)
+                
+                    for symbol in expired_symbols:
+                        pass
+                    del self.data_cache[symbol]
+                
+                    if expired_symbols:
+                    logger.debug(f"🧹 Cleaned {len(expired_symbols)} expired cache entries")
+                
+            except Exception as e:
+                logger.error(f"❌ Error in data aggregator: {e}")
+
+                async def stop(self) -> None:
+        """Stop real-time data manager"""
+        try:
+            self.is_running = False
+            
+            # Stop all symbol streams
+            for symbol in list(self.active_symbols):
+                await self._stop_symbol_stream(symbol)
+            
+            # Disconnect from data providers
+            await self.ib_provider.disconnect()
+            
+            logger.info("🛑 RealtimeDataManager stopped")
+            
+        except Exception as e:
+            logger.error(f"❌ Error stopping RealtimeDataManager: {e}")
+
+            def get_status(self) -> Dict[str, Any]:
+        """Get current status and metrics"""
+        return {
+            'is_running': self.is_running,
+            'active_symbols': len(self.active_symbols),
+            'active_subscriptions': sum(len(subs) for subs in self.subscriptions.values()),
+            'cached_data_points': len(self.data_cache),
+            'quality_stats': self.quality_stats.copy(),
+            'failover_sources': self.failover_sources }
+
+
+# Global instance
+_realtime_data_manager: Optional[RealtimeDataManager] = None
+
+
+def get_realtime_data_manager() -> RealtimeDataManager:
+    """Get the global realtime data manager instance"""
+    global _realtime_data_manager
+    if _realtime_data_manager is None:
+        _realtime_data_manager = RealtimeDataManager()
+    return _realtime_data_manager
+
+
+        async def initialize_realtime_data_manager() -> RealtimeDataManager:
+    """Initialize and return the realtime data manager"""
+from ..models import PortfolioPosition, StockUniverse, PortfolioAccount
+from .stock_data_manager import StockDataManager
+from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
+from enum import Enum
+from sqlalchemy import and_
+from src.cache.redis_cache import RedisCache
+from src.database.connection import get_db
+from src.market_data.ib_data_provider import IBDataProvider
+from typing import Dict, List, Optional, Any, Callable, Set
+import aiohttp
+import asyncio
+import json
+import logging
+import time
+import websockets
+    manager = get_realtime_data_manager()
+if not manager.is_running:
+        await manager.initialize()
+    # return manager

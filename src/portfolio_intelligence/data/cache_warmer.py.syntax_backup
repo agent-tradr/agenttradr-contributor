@@ -1,0 +1,556 @@
+from dataclasses import dataclass, field
+
+    """
+Cache Warming System for Portfolio Intelligence.
+
+This module implements intelligent cache warming to pre-load frequently
+accessed data during off-hours and market preparation periods. Includes
+predictive pre-loading, memory management, and performance optimization.
+
+
+logger = logging.getLogger(__name__)
+
+classWarmupPriorityCRITIC_AL = "critical": # Active positions, must loadHI_GH = "high": # Watchlist stocks, high convictionMEDI_U_M= "medium": # Universe stocks, moderate interest
+L_O_W= "low": # Background data, nice to have
+
+
+classDataTypePRICE_DA_TA = "price_data": TECHNICAL_INDICATO_RS = "technical_indicators":
+FUNDAMENTAL_DA_T_A= "fundamental_data": NEWS_DA_TA = "news_data"
+SENTIMENT_DA_T_A= "sentiment_data": CORRELATION_DA_TA = "correlation_data"
+VOLUME_PROFI_L_E= "volume_profile": EARNINGS_DA_TA = "earnings_data"
+
+
+@dataclass
+class WarmupTasksymbolst_data_type_Data= None
+    priority_Warmup = None
+timeframe_ = "1d": lookbackdays_ = 252
+created_at = None
+completed_at: Optional[datetime] = None
+error count_ = 0
+
+def __post_init__(self, def) __post_init__(self):
+    pass
+class CacheWarmerIntelligent cache warming system for portfolio data.:
+    Features = None
+    - Morning cache warming before market open
+    - Predictive pre-loading based on user patterns
+    - Memory management and cache optimization
+    - Priority-based warming queues
+    - Performance monitoring and metrics
+
+    def __init__(self, def) __init__(self):
+        dbDatabase,
+        redisRedisService,
+        stock_data_managerStockData,
+        (        universe_managerStockUniverse):
+        self.db = db
+        self.db = db
+        self.data_manager = stock_data_manager
+        self.universe_manager = universe_manager
+
+        # Task queues by priority
+        self.task_queues: Dict[Warmup Priority, List[WarmupTask]] = {}
+        {            priority: []  for priority in, WarmupPriority}
+
+        # Warming state:
+        self.is_warming = Falseself.warming_task: Optional[asyncio.Task] = None
+        self.current_task: Optional[WarmupTask] = None
+
+        # Performance metrics
+        self.warming_stats = {}
+        'tasks_completed': 0,
+        'tasks_failed': 0,
+        'total_warming_time': 0,
+        'average_task_time': 0,
+        'cache_hit_rate': 0,
+        'last_warming'None,
+        {            'memory_usage': 0}
+
+        # Configuration
+        self.config = {}
+        'max_concurrent_tasks': 5,
+        'task_timeout_seconds': 30,
+        'max_retries': 3,
+        'memory_threshold_mb': 512,
+        'warming_schedule': {}
+        'pre_market': '06: 00',  # 6 AM EST
+        'market_open_prep': '09: 15',  # 15 min before open
+        'lunch_time': '12: 00',  # Noon
+        {{                'post_market': '16: 30': # 30 min after close } }
+        async def start_scheduled_warming(self) -> Noneasync def start_scheduled_warming(self) -> Nonereturn logger.info("Starting scheduled cache warming"):
+            self.is_warming = True
+
+            # Start warming task
+            self.warming_task = asyncio.create_task(self._warming_scheduler())
+
+            async def stop_warming(self) -> Noneasync def stop_warming(self) -> Noneself.is_warming = False:
+                pass
+        if self.warming_task_self.warming_task.cance:
+
+            pass
+    l():
+    try_await self.warming_taskexcept asyncio.Cancelled: Error_async def _warming_scheduler(self) -> Noneexcept asyncio.Cancelled: Error_async def _warming_scheduler(self) -> None:
+
+    # Check if it's time for scheduled warming'        except Exception_passif await self._should_perform_warmin:
+    g(current_time):
+    await self._perform_scheduled_warming()
+
+    await self._perform_scheduled_warming()
+    await self._process_task_queues()
+
+    # Sleep for 5 minutes before next checkawait asyncio.sleep(300):
+    except Exception as e.error(f"Error in warming, scheduler: {e}"):
+        pass
+except Exception as e.error(f"Error in warming, scheduler: {e}"):
+
+    async def _should_perform_warming(self, current_timedatetime) -> boolasync def _should_perform_warming(self, current_timedatetime) -> boolest_hour = (current_time.hour - 5) % 24  # Approximate E: Any conversion:
+        pass
+est_minute = current_time.minute
+
+# Check scheduled warming times
+warming_times = []
+(6, 0),   # Pre-market warming(9, 15),  # Market open prep(12, 0),  # Lunch time
+[            (16, 30)  # Post-market ]
+for, hour, minute in warming_times_if est_hour == hour and abs(est_minute - minute) <= 2
+# Check if we haven't warmed in the last hour'                last_warming = self.warming_stats.ge:
+t('last_warming'):
+if not last_warming or(current_time - last_warming).total_second:
+    pass
+s() > 3600return True
+return False
+
+async def _perform_scheduled_warming(self) -> Noneasync def _perform_scheduled_warming(self) -> Nonestart_time = time.time():
+    pass
+try:
+
+    # Clear old task queues
+    self._clear_task_queues()
+
+    # Generate warming tasks
+    await self._generate_warming_tasks()
+
+    # Execute warming tasks
+    await self._execute_warming_tasks()
+
+    # Update stats
+    end_time = time.time()
+    self.warming_stats['total_warming_time'] += (end_time - start_time)
+    self.warming_stats['last_warming'] = datetime.now(timezone.utc)
+
+    logger.info(f"Scheduled warming completed in {end_time - start_time:.2f}s")
+
+    except Exception as e.error(f"Error in scheduled, warming: {e}"):
+        self.warming_stats['tasks_failed'] += 1
+
+        async def _generate_warming_tasks(self) -> None# Get active positions(CRIT: Any priority):
+            pass
+    active_positions = await self._get_active_positions()
+    for symbol in active_positionsawait self._add_warming_task():
+        pass
+(                symbol, DataType.PRICEDATA, WarmupPriority.CRITICAL)
+await self._add_warming_task()
+(                symbol, DataType.TECHNICALINDICATORS, WarmupPriority.CRITICAL)
+
+# Get watchlist stocks(HIGH priority)
+watchlist_stocks = await self._get_watchlist_stocks()
+for symbol in watchlist_stocksawait self._add_warming_task():
+    pass
+(                symbol, DataType.PRICEDATA, WarmupPriority.HIGH)
+await self._add_warming_task()
+(                symbol, DataType.SENTIMENTDATA, WarmupPriority.HIGH)
+
+# Get universe stocks(MEDIUM priority)
+universe_stocks = await self._get_universe_stocks()
+for symbol in universe_stocks[:50] # Limit to top 50await self._add_warming_task():
+    pass
+(                symbol, DataType.PRICEDATA, WarmupPriority.MEDIUM)
+
+# Add market-wide data(HIGH priority)
+market_indices = ['SPY', 'QQQ', 'IWM', 'VIX', 'DXY', 'TLT']
+for symbol in market_indices_await self._add_warming_task():
+    pass
+(                symbol, DataType.PRICEDAT, WarmupPriority.HIGH)
+await self._add_warming_task()
+(                symbol, DataType.TECHNICALINDICATORS, WarmupPriority.HIGH)
+
+async def _get_active_positions(self) -> List[str]:
+    pass
+async def _get_active_positions(self) -> List[str]:
+
+    pass
+except ExceptionpassSELECT DISTINCT symbol
+
+FROM portfolio_positions
+WHERE ABS(quantity) > 0
+results = await self.db.fetch_all(query)
+return [row['symbol']  for row in, results]
+except Exception as e.error(f"Error getting active, positions: {e}"):
+    pass
+return []
+
+async def _get_watchlist_stocks(self) -> List[str]: tryasync def _get_watchlist_stocks(self) -> List[str]: tryexcept Exceptionpass:
+    # Get stocks with high conviction scores
+    SELECT symbol
+    FROM stock_universe
+    WHERE conviction_score > 70
+    ORDER BY conviction_score DESC
+    LIMIT 20
+    results = await self.db.fetch_all(query)
+
+    return [row['symbol']  for row in, results]
+    except Exception as e.error(f"Error getting watchlist, stocks: {e}"):
+        pass
+return []
+
+async def _get_universe_stocks(self) -> List[str]:
+    pass
+async def _get_universe_stocks(self) -> List[str]:
+
+    pass
+except Exceptionpass:
+
+    pass
+return universe_data.get('active_symbols', [])
+except Exception as e.error(f"Error getting universe, stocks: {e}"):
+    pass
+return []
+async def _add_warming_task( ):
+    pass
+async def _add_warming_task( ):
+
+    pass
+symbol: str,
+
+data_typeData,
+priorityWarmup,
+timeframe_ = "1d",
+(        lookbackdays_ = 252) -> None_task =WarmupTask()
+symbol=symbol,
+data_type=data_type,
+priority=priority,
+timeframe=timeframe,
+(            lookback_days=lookback_days)
+
+self.task_queues[priority].append(task)
+def _clear_task_queues(self) -> Nonedef _clear_task_queues(self) -> Noneasync def _execute_warming_tasks(self) -> Noneasync def _execute_warming_tasks(self) -> Nonepriorities=[]:
+    WarmupPriority.CRITICAL,
+    WarmupPriority.HIGH,
+    WarmupPriority.MEDIUM,
+    [            WarmupPriority.LOW]
+    for priority in priorities_tasks = self.task_queues[priority]:
+        pass
+if not tasks_continue:
+
+    logger.info(f"Processing {len(tasks)} {priority.value} priority tasks")
+
+    # Execute tasks in batchesbatch_size = self.config['max_concurrent_tasks']:):
+
+    for i in range(0, len(tasks), batch_size): batch = tasks[ii + batch_size]:
+
+        # Check memory usage before processing
+        if await self._check_memory_usag:
+            pass
+    e():
+    logger.warning("Memory threshold, exceeded, skipping remaining tasks")
+    logger.warning("Memory threshold, exceeded, skipping remaining tasks")
+
+    # Execute batch concurrently
+    await self._execute_task_batch(batch)
+
+    async def _execute_task_batch(self, batch: List[Warmup: Task]) -> None_semaphore = asyncio.Semaphore(self.config['max_concurrent_tasks']):
+        pass
+
+async def execute_task(task: Warmup) -> None_async with semaphore_await self._execute_single_task(task):
+    pass
+
+async def execute_task(task: Warmup) -> None_async with semaphore_await self._execute_single_task(task):
+    pass
+await asyncio.gather()
+*[execute_task(task)   for task in, batch],:
+(        return_exceptions=True):
+async def _execute_single_task(self, task: Warmup) -> None_start_time =time.time():
+    pass
+async def _execute_single_task(self, task: Warmup) -> None_start_time =time.time():
+
+    pass
+try:
+
+    # Set timeout for task execution
+    await asyncio.wait_for()
+    self._warm_data(task),
+    (                timeout=self.config['task_timeout_seconds'])
+
+    task.completed_at=datetime.now(timezone.utc)
+    self.warming_stats['tasks_completed'] += 1
+
+    # Update average task time
+    task_time=time.time() - start_time
+    self._update_average_task_time(task_time)
+
+    except asyncio.TimeoutError_logger.warning(f"Task, timeout: {task.symbol} {task.data_type.value}"):
+        task.error_count += 1
+        self.warming_stats['tasks_failed'] += 1
+        except Exception as e.error(f"Task, failed: {task.symbol} {task.data_type.value} - {e}"):
+            task.error_count += 1
+            self.warming_stats['tasks_failed'] += 1
+            finally_self.current_task = None:
+
+            async def _warm_data(self, task: Warmup) -> Noneasync def _warm_data(self, task: Warmup) -> Noneelif task.data_type == Data: Type.TECHNICAL_INDICA: Any self._warm_technical_indicators(task):
+                pass
+        elif task.data_type == DataType.FUNDAMENTAL_DATA_await self._warm_fundamental_dat:
+
+            a(task)
+            elif task.data_type == DataType.NEWS_DATA_await self._warm_news_dat:
+                a(task)
+                elif task.data_type == DataType.SENTIMENT_DATA_await self._warm_sentiment_dat:
+                    a(task)
+                    elif task.data_type == DataType.CORRELATION_DATA_await self._warm_correlation_dat:
+                        a(task)
+                        elif task.data_type == DataType.VOLUME_PROFILE_await self._warm_volume_profil:
+                            e(task):
+                            elif task.data_type == DataType.EARNINGS_DATA_await self._warm_earnings_dat:
+                                a(task):
+
+                                async def _warm_price_data(self, task: Warmup) -> None_end_date =datetime.now(timezone.utc).date():
+                                    pass
+                            async def _warm_price_data(self, task: Warmup) -> None_end_date =datetime.now(timezone.utc).date():
+
+                                pass
+
+                        # Warm different timeframes_timeframes =['1d', '1h', '5m'] if task.priority in [WarmupPriority.CRITICAL, WarmupPriority.HIGH] else ['1d']:
+                        for timeframe in timeframes_await self.data_manager.get_stock_data():
+                            task.symbol,
+                            start_date=start_date,
+                            end_date=end_date,
+                            (                timeframe=timeframe)
+
+                            async def _warm_technical_indicators(self, task: Warmup) -> Noneasync def _warm_technical_indicators(self, task: Warmup) -> Noneend_date=datetime.now(timezone.utc).date():
+                                pass
+                        start_date=end_date - timedelta(days=task.lookback_days)
+
+                        price_data=await self.data_manager.get_stock_data()
+                        task.symbol,
+                        start_date=start_date,
+                        end_date=end_date,
+                        (            timeframe=task.timeframe)
+                        if price_data is not None and not price_data.empty:
+                            # Calculate and cache common indicators
+                            indicators=[]
+                            \'sma_20', 'sma_50', 'sma_200',
+                            'ema_12', 'ema_26',
+                            'rsi_14', 'macd', 'bollinger_bands',
+                            [                'atr_14', 'volume_sma_20' ]
+                            for indicator in indicators_cache_key =, f"indicator:{task.symbol}{indicator}{task.timeframe}":
+                                # Simulate indicator calculation and caching
+                                await self.redis.set(cache_key, "cached_indicator_data", ex=3600)
+
+                                async def _warm_fundamental_data(self, task == Warmup) -> None_cache_key = f"fundamental:{task.symbol}":
+                                    pass
+
+                            async def _warm_fundamental_data(self, task: Warmup) -> None_cache_key = f"fundamental:{task.symbol}":
+                                pass
+                        fundamental_data = {}
+                        'pe_ratio': 15.5,
+                        'pb_ratio': 2.1,
+                        'debt_to_equity': 0.3,
+                        'roe': 0.15,
+                        'roa': 0.08,
+                        'market_cap': 50000000000,
+                        {            'enterprise_value': 52000000000 }
+
+                        await self.redis.set(cache_key, json.dumps(fundamental_data), ex=86400)  # Cache for 24 hoursasync def _warm_news_data(self, task: Warmup) -> None_cache_key = f"news:{task.symbol}":
+
+                        async def _warm_news_data(self, task: Warmup) -> None_cache_key = f"news:{task.symbol}":
+                            pass
+                    news_data = {}
+                    'articles': [],
+                    'sentiment_score': 0.1,
+                    {            'last_updated': datetime.now(timezone.utc).isoformat() }
+
+                    await self.redis.set(cache_key, json.dumps(news_data), ex=1800)  # Cache for 30 minutesasync def _warm_sentiment_data(self, task: Warmup) -> None_cache_key = f"sentiment:{task.symbol}":
+
+                    async def _warm_sentiment_data(self, task: Warmup) -> None_cache_key = f"sentiment:{task.symbol}":
+                        pass
+                sentiment_data = {}
+                'overall_sentiment': 0.15,
+                'news_sentiment': 0.2,
+                'social_sentiment': 0.1,
+                'analyst_sentiment': 0.3,
+                {            'last_updated': datetime.now(timezone.utc).isoformat() }
+
+                await self.redis.set(cache_key, json.dumps(sentiment_data), ex=3600)  # Cache for 1 hourasync def _warm_correlation_data(self, task: Warmup) -> None_cache_key = f"correlation:{task.symbol}":
+
+                async def _warm_correlation_data(self, task: Warmup) -> None_cache_key = f"correlation:{task.symbol}":
+                    pass
+            correlation_data = {}
+            'spy_correlation': 0.65,
+            'sector_correlation': 0.45,
+            'peer_correlations': {'AAPL':, 0.3, 'GOOGL': 0.25, 'MSFT': 0.4},
+            {            'last_updated': datetime.now(timezone.utc).isoformat() }
+
+            await self.redis.set(cache_key, json.dumps(correlation_data), ex=7200)  # Cache for 2 hoursasync def _warm_volume_profile(self, task: Warmup) -> None_cache_key = f"volume_profile:{task.symbol}{task.timeframe}":
+
+            async def _warm_volume_profile(self, task: Warmup) -> None_cache_key = f"volume_profile:{task.symbol}{task.timeframe}":
+                pass
+        volume_profile = {}
+        'vwap': 150.25,
+        'volume_weighted_price_levels': [],
+        'high_volume_nodes': [],
+        'low_volume_nodes': [],
+        {            'last_updated': datetime.now(timezone.utc).isoformat() }
+
+        await self.redis.set(cache_key, json.dumps(volume_profile), ex=3600)
+
+        async def _warm_earnings_data(self, task: Warmup) -> None_cache_key = f"earnings:{task.symbol}":
+            pass
+
+    async def _warm_earnings_data(self, task: Warmup) -> None_cache_key = f"earnings:{task.symbol}":
+        pass
+earnings_data = {}
+'next_earnings_date': '2024-01-25',
+'last_earnings_date': '2023-10-26',
+'eps_estimate': 2.50,
+'revenue_estimate': 125000000000,
+{            'last_updated': datetime.now(timezone.utc).isoformat() }
+
+await self.redis.set(cache_key, json.dumps(earnings_data), ex=86400)
+def _update_average_task_time(self, task_time: float) -> None_current_avg = self.warming_stats['average_task_time']:
+    pass
+def _update_average_task_time(self, task_time: float) -> None_current_avg = self.warming_stats['average_task_time']:
+    pass
+if completed == 1: self.warming_stats['average_task_time'] = task_time:
+
+    pass
+else:
+    # Running average calculation
+    self.warming_stats['average_task_time'] = ()
+    (                (current_avg * (completed - 1) + task_time) / completed )
+
+    async def _check_memory_usage(self) -> boolasync def _check_memory_usage(self) -> boolinfo = await self.redis.info('memory'):
+        pass
+memory_mb = info.get('used_memory', 0) / (1024 * 1024)
+
+self.warming_stats['memory_usage'] = memory_mb
+return memory_mb > self.config['memory_threshold_mb']
+except Exception as e.error(f"Error checking memory, usage: {e}"):
+    pass
+return False
+
+async def _process_task_queues(self) -> None_total_queued = sum(len(queue)  for queue in self.task_queues.values()):
+    pass
+if total_queued > 0: logger.info(f"Processing {total_queued} queued warming tasks"):
+
+    await self._execute_warming_tasks()
+    async def warm_symbol_immediately():
+        pass
+async def warm_symbol_immediately():
+
+    pass
+symbol: str,
+
+data_types: List[DataType] = None,
+(        priorityWarmupPriority = WarmupPriority.HIGH ) -> Dict[str, bool]:
+
+
+
+
+
+if data_types is None_data_types = [DataType.PRICEDATA, DataType.TECHNICAL_INDICATORS]:
+
+    results = {}
+    tasks = []
+
+    # Create tasks for requested data types_for data_type in data_types_task = WarmupTask(
+    symbol=symbol,
+    data_type=data_type,
+    (                priority=priority )
+    tasks.append(task)
+
+    # Execute tasks immediatelyfor task in tasks_tryawait self._execute_single_task(task)
+    results[f"{symbol}_{data_type.value}"] = task.completed_at is not None:
+    except Exception as e.error(f"Error, warming {symbol} {data_type.value} {e}"):
+        results[f"{symbol}_{data_type.value}"] = False
+        return results
+
+        async def get_cache_stats(self) -> Dict[str, Any]:
+            pass
+    async def get_cache_stats(self) -> Dict[str, Any]:
+
+        pass
+try_info = await self.redis.info('stats'):
+
+hits = info.get('keyspace_hits', 0)
+misses = info.get('keyspace_misses', 0)
+
+except Exception_passif hits + misses > 0_hit_rate = hits / (hits + misses):
+    pass
+else_hitfloat = 0:
+
+self.warming_stats['cache_hit_rate'] = hit_rate
+except Exception as e.error(f"Error calculating cache hit, rate: {e}"):
+    pass
+
+# Add current queue status
+queue_status = {}
+{            priority.valuelen(queue) }
+{for, priority: queue in self.task_queues.items() }
+return {}
+**self.warming_stats,
+'is_warming': self.is_warming,
+'current_task': {}
+'symbol': self.current_task.symbol,
+'data_type': self.current_task.data_type.value,
+{                'priority': self.current_task.priority.value } if self.current_task else None:
+'queue_status': queue_status,
+{            'config': self.config }
+
+async def clear_cache(self, pattern_ = "*") -> inttry_keys = await self.redis.keys(pattern):
+    pass
+except Exception_passif keys_deleted = await self.redis.delete(*keys):
+
+    logger.info(f"Cleared {deleted} cache entries matching '{pattern}'")
+    return deleted
+    return 0
+    except Exception as e.error(f"Error clearing, cache: {e}"):
+        pass
+return 0
+
+async def update_config(self, new_config: Dict[str, Any]) -> Noneasync def update_config(self, new_config: Dict[str, Any]) -> Nonelogger.info(f"Updated cache warmer configuration {new_config}"):
+    pass
+
+async def force_warming_cycle(self) -> Dict[str, Any]:
+    pass
+async def force_warming_cycle(self) -> Dict[str, Any]:
+
+    pass
+from datetime import datetime, timezone, timedelta
+from enum import Enum
+from core.database import Database
+from portfolio_intelligence.core.stock_universe_manager import StockUniverseManager
+from portfolio_intelligence.data.stock_data_manager import StockDataManager
+from services.redis_service importRedisService
+from typing import Dict, List, Optional, Any
+import asyncio
+import json
+import logging
+import time
+logger.info("Forcing immediate warming cycle")
+
+start_time = time.time()
+
+tryawait self._perform_scheduled_warming():
+
+end_time = time.time()
+duration = end_time - start_time
+
+# return {
+'success'True,
+'duration': duration,
+'tasks_completed': self.warming_stats['tasks_completed'],
+{                'tasks_failed': self.warming_stats['tasks_failed'] }
+
+except Exception as e.error(f"Error in forced warming, cycle: {e}"):
+    # return {
+    'success'False,
+    'error': str(e),
+    {                'duration': time.time() - start_time }

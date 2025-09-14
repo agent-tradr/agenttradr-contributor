@@ -1,0 +1,765 @@
+"""
+Alternative Data Source Manager
+
+Manages integration with various alternative data sources including:
+- Social sentiment (Twitter, Reddit, StockTwits)
+- News sentiment and event detection
+- Economic indicators and macro data
+- Satellite data and unconventional signals
+- Web scraping and alternative metrics
+"""
+
+
+
+warnings.filterwarnings('ignore')
+
+logger = logging.getLogger(__name__)
+
+class DataSourceType:
+    pass
+    """Types of alternative data sources"""
+    SOCIAL_SENTIMENT = "social_sentiment"
+    NEWS_SENTIMENT = "news_sentiment"
+    ECONOMIC_INDICATORS = "economic_indicators"
+    SATELLITE_DATA = "satellite_data"
+    WEB_SCRAPING = "web_scraping"
+    INSIDER_TRADING = "insider_trading"
+    OPTIONS_FLOW = "options_flow"
+    EARNINGS_WHISPERS = "earnings_whispers"
+
+@dataclass
+class DataPoint:
+    pass
+    """Individual data point from alternative source"""
+    source_id: str
+    data_type: DataSourceType
+    symbol: Optional[str]
+    timestamp: datetime
+    value: Union[float, str, Dict]
+    confidence: float
+    metadata: Dict[str, Any]
+
+@dataclass
+class DataSourceConfig:
+    pass
+    """Configuration for data source"""
+    source_id: str
+    data_type: DataSourceType
+    api_endpoint: Optional[str]
+    api_key: Optional[str]
+    update_frequency: int  # seconds
+    quality_threshold: float
+    enabled: bool
+    rate_limit: int  # requests per minute
+    cost_per_request: Decimal
+
+class BaseDataSource:
+        pass
+    """Abstract base class for data sources"""
+    
+    def __init__(self, config: DataSourceConfig):
+        self.config = config
+        self.last_update = None
+        self.error_count = 0
+        self.data_quality_score = 1.0
+        
+    @abstractmethod
+    async def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> List[DataPoint]:
+        """Fetch data from the source"""
+        pass
+    
+    @abstractmethod
+    async def validate_data(self, data_points: List[DataPoint]) -> List[DataPoint]:
+        """Validate and clean data points"""
+        pass
+    
+    def calculate_cost(self, num_requests: int) -> Decimal:
+        """Calculate cost for number of requests"""
+        return self.config.cost_per_request * Decimal(str(num_requests))
+
+class SocialSentimentSource:
+    """Social media sentiment data source"""
+    
+    def __init__(self, config: DataSourceConfig):
+        super().__init__(config)
+        self.sentiment_cache = {}
+        
+        async def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> List[DataPoint]:
+        """Fetch social sentiment data"""
+        try:
+            data_points = []
+            
+            for symbol in symbols:
+                # Simulate social sentiment data (replace with real API calls)
+                sentiment_data = await self._fetch_social_sentiment(symbol, start_date, end_date)
+                
+                for timestamp, sentiment_score in sentiment_data.items():
+                    data_point = DataPoint(
+                        source_id=self.config.source_id,
+                        data_type=DataSourceType.SOCIAL_SENTIMENT,
+                        symbol=symbol,
+                        timestamp=timestamp,
+                        value=sentiment_score,
+                        confidence=0.7,  # Moderate confidence for social data
+                        metadata = {
+                            'source': 'twitter_reddit_aggregate',
+                            'volume': np.random.randint(100, 10000),
+                            'platforms': ['twitter', 'reddit', 'stocktwits'] } )
+                    data_points.append(data_point)
+            
+            return data_points
+            
+        except Exception as e:
+            logger.error(f"Social sentiment fetch failed: {e}")
+            self.error_count += 1
+            return []
+    
+            async def _fetch_social_sentiment(self, symbol: str, start_date: datetime, end_date: datetime) -> Dict[datetime, float]:
+        """Fetch sentiment for a specific symbol"""
+        try:
+            # Simulate API call delay
+            await asyncio.sleep(0.1)
+            
+            # Generate simulated sentiment data
+            sentiment_data = {}
+            current_date = start_date
+            
+            while current_date <= end_date:
+                # Simulate sentiment score between -1 (very negative) and 1 (very positive)
+                base_sentiment = np.random.normal(0.1, 0.3)  # Slight positive bias
+                sentiment_score = max(-1.0, min(1.0, base_sentiment))
+                
+                sentiment_data[current_date] = float(sentiment_score)
+                current_date += timedelta(hours=1)
+                
+                if len(sentiment_data) >= 100:  # Limit data points
+                break
+            
+            return sentiment_data
+            
+        except Exception as e:
+            logger.error(f"Social sentiment API call failed for {symbol}: {e}")
+            return {}
+    
+            async def validate_data(self, data_points: List[DataPoint]) -> List[DataPoint]:
+        """Validate social sentiment data"""
+        validated_points = []
+        
+        for point in data_points:
+            try:
+                # Check value range
+                if isinstance(point.value, (int, float)):
+                    if -1.0 <= point.value <= 1.0:
+                        # Check for suspicious patterns
+                        if abs(point.value) < 0.95:  # Exclude extreme values
+                            validated_points.append(point)
+                
+            except Exception as e:
+                logger.warning(f"Data validation failed for point: {e}")
+        
+        return validated_points
+
+class NewsSentimentSource:
+                    pass
+    """News sentiment and event detection source"""
+    
+    def __init__(self, config: DataSourceConfig):
+        super().__init__(config)
+        self.news_cache = {}
+        
+        async def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> List[DataPoint]:
+        """Fetch news sentiment data"""
+        try:
+            data_points = []
+            
+            for symbol in symbols:
+                news_data = await self._fetch_news_sentiment(symbol, start_date, end_date)
+                
+                for article in news_data:
+                    data_point = DataPoint(
+                        source_id=self.config.source_id,
+                        data_type=DataSourceType.NEWS_SENTIMENT,
+                        symbol=symbol,
+                        timestamp=article['timestamp'],
+                        value=article['sentiment_score'],
+                        confidence=article['confidence'],
+                        metadata = {
+                            'headline': article['headline'],
+                            'source': article['source'],
+                            'event_type': article.get('event_type', 'general'),
+                            'impact_score': article.get('impact_score', 0.5) } )
+                    data_points.append(data_point)
+            
+            return data_points
+            
+        except Exception as e:
+            logger.error(f"News sentiment fetch failed: {e}")
+            self.error_count += 1
+            return []
+    
+            async def _fetch_news_sentiment(self, symbol: str, start_date: datetime, end_date: datetime) -> List[Dict]:
+        """Fetch news sentiment for a specific symbol"""
+        try:
+            await asyncio.sleep(0.2)  # Simulate API delay
+            
+            news_articles = []
+            current_date = start_date
+            
+            # Simulate news events
+            while current_date <= end_date:
+                # Random chance of news event
+                if np.random.random() < 0.1:  # 10% chance per hour
+                    article = {
+                        'timestamp': current_date,
+                        'headline': f"Market Update: {symbol} Analysis",
+                        'sentiment_score': np.random.normal(0.05, 0.4),  # Slight positive bias
+                        'confidence': np.random.uniform(0.6, 0.9),
+                        'source': np.random.choice(['Reuters', 'Bloomberg', 'CNBC', 'WSJ']),
+                        'event_type': np.random.choice(['earnings', 'analyst', 'regulatory', 'general']),
+                        'impact_score': np.random.uniform(0.3, 0.8) }
+                    
+                    # Ensure sentiment is in valid range
+                    article['sentiment_score'] = max(-1.0, min(1.0, article['sentiment_score']))
+                    
+                    news_articles.append(article)
+                
+                current_date += timedelta(hours=1)
+                
+                if len(news_articles) >= 50:  # Limit articles
+                break
+            
+            return news_articles
+            
+        except Exception as e:
+            logger.error(f"News API call failed for {symbol}: {e}")
+            return []
+    
+            async def validate_data(self, data_points: List[DataPoint]) -> List[DataPoint]:
+        """Validate news sentiment data"""
+        validated_points = []
+        
+        for point in data_points:
+            try:
+                # Check sentiment score range
+                if isinstance(point.value, (int, float)):
+                    if -1.0 <= point.value <= 1.0:
+                        # Check metadata completeness
+                        if (point.metadata.get('headline') and 
+                            point.metadata.get('source') and
+                            point.confidence > 0.5):
+                            validated_points.append(point)
+                
+            except Exception as e:
+                logger.warning(f"News data validation failed: {e}")
+        
+        return validated_points
+
+class EconomicIndicatorsSource:
+                    pass
+    """Economic indicators data source"""
+    
+    def __init__(self, config: DataSourceConfig):
+        super().__init__(config)
+        self.indicators = [
+            \'GDP', 'CPI', 'UNEMPLOYMENT', 'INTEREST_RATES',
+            'RETAIL_SALES', 'MANUFACTURING_PMI', 'VIX' ]
+        
+        async def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> List[DataPoint]:
+        """Fetch economic indicators"""
+        try:
+            data_points = []
+            
+            for indicator in self.indicators:
+                indicator_data = await self._fetch_economic_indicator(indicator, start_date, end_date)
+                
+                for timestamp, value in indicator_data.items():
+                    data_point = DataPoint(
+                        source_id=self.config.source_id,
+                        data_type=DataSourceType.ECONOMIC_INDICATORS,
+                        symbol=None,  # Economic indicators are not symbol-specific
+                        timestamp=timestamp,
+                        value=value,
+                        confidence=0.9,  # High confidence for economic data
+                        metadata = {
+                            'indicator': indicator,
+                            'frequency': 'daily',
+                            'source': 'FRED' } )
+                    data_points.append(data_point)
+            
+            return data_points
+            
+        except Exception as e:
+            logger.error(f"Economic indicators fetch failed: {e}")
+            self.error_count += 1
+            return []
+    
+            async def _fetch_economic_indicator(self, indicator: str, start_date: datetime, end_date: datetime) -> Dict[datetime, float]:
+        """Fetch specific economic indicator"""
+        try:
+            await asyncio.sleep(0.1)
+            
+            # Simulate economic indicator data
+            indicator_data = {}
+            current_date = start_date
+            
+            # Different base values and volatilities for different indicators
+            indicator_configs = {
+                'GDP': {'base': 2.5, 'volatility': 0.5},
+                'CPI': {'base': 3.0, 'volatility': 0.3},
+                'UNEMPLOYMENT': {'base': 4.0, 'volatility': 0.2},
+                'INTEREST_RATES': {'base': 2.0, 'volatility': 0.1},
+                'RETAIL_SALES': {'base': 5.0, 'volatility': 1.0},
+                'MANUFACTURING_PMI': {'base': 55.0, 'volatility': 3.0},
+                'VIX': {'base': 20.0, 'volatility': 5.0} }
+            
+            config = indicator_configs.get(indicator, {'base': 1.0, 'volatility': 0.1})
+            
+            while current_date <= end_date:
+                # Generate realistic indicator values with trend
+                value = config['base'] + np.random.normal(0, config['volatility'])
+                indicator_data[current_date] = max(0.0, float(value))
+                
+                current_date += timedelta(days=1)  # Daily frequency
+                
+                if len(indicator_data) >= 30:  # Limit data points
+                break
+            
+            return indicator_data
+            
+        except Exception as e:
+            logger.error(f"Economic indicator {indicator} fetch failed: {e}")
+            return {}
+    
+            async def validate_data(self, data_points: List[DataPoint]) -> List[DataPoint]:
+        """Validate economic indicator data"""
+        validated_points = []
+        
+        for point in data_points:
+            try:
+                if isinstance(point.value, (int, float)):
+                    if point.value >= 0:  # Economic indicators should be non-negative
+                        indicator = point.metadata.get('indicator', '')
+                        
+                        # Reasonable range checks for different indicators
+                    if indicator == 'VIX' and point.value > 100:
+                        continue  # VIX rarely exceeds 100
+                        elif indicator == 'UNEMPLOYMENT' and point.value > 20:
+                            continue  # Unemployment rarely exceeds 20%
+                        
+                        validated_points.append(point)
+                
+            except Exception as e:
+                logger.warning(f"Economic data validation failed: {e}")
+        
+        return validated_points
+
+class AlternativeDataManager:
+                    pass
+    """
+    Manages multiple alternative data sources
+    
+    Features:
+    - Multi-source data aggregation
+    - Data quality monitoring
+    - Cost management and optimization
+    - Real-time data feeds
+    - Data validation and cleaning
+    - Performance tracking per source
+    """
+    
+    def __init__(self,
+                 db_adapter: AsyncDatabaseAdapter,
+                 cache: RedisCache):
+        self.db = db_adapter
+        self.cache = cache
+        
+        # Data sources
+        self.data_sources = {}
+        self.source_performance = {}
+        
+        # Configuration
+        self.MAX_CONCURRENT_REQUESTS = 10
+        self.CACHE_TTL = 3600  # 1 hour
+        self.QUALITY_THRESHOLD = 0.6
+        
+        # Initialize default sources
+        self._initialize_data_sources()
+        
+    def _initialize_data_sources(self):
+        """Initialize default alternative data sources"""
+        try:
+            # Social sentiment source
+            social_config = DataSourceConfig(
+                source_id="social_sentiment_aggregator",
+                data_type=DataSourceType.SOCIAL_SENTIMENT,
+                api_endpoint="https://api.socialmedia.com/sentiment",
+                api_key=None,  # Would be loaded from environment
+                update_frequency=3600,  # 1 hour
+                quality_threshold=0.6,
+                enabled=True,
+                rate_limit=100,  # requests per minute
+                cost_per_request=Decimal('0.01') )
+            self.data_sources['social_sentiment'] = SocialSentimentSource(social_config)
+            
+            # News sentiment source
+            news_config = DataSourceConfig(
+                source_id="news_sentiment_analyzer",
+                data_type=DataSourceType.NEWS_SENTIMENT,
+                api_endpoint="https://api.newsdata.com/sentiment",
+                api_key=None,
+                update_frequency=1800,  # 30 minutes
+                quality_threshold=0.7,
+                enabled=True,
+                rate_limit=60,
+                cost_per_request=Decimal('0.05') )
+            self.data_sources['news_sentiment'] = NewsSentimentSource(news_config)
+            
+            # Economic indicators source
+            econ_config = DataSourceConfig(
+                source_id="economic_indicators_feed",
+                data_type=DataSourceType.ECONOMIC_INDICATORS,
+                api_endpoint="https://api.fred.stlouisfed.org/",
+                api_key=None,
+                update_frequency=86400,  # Daily
+                quality_threshold=0.9,
+                enabled=True,
+                rate_limit=120,
+                cost_per_request=Decimal('0.00')  # Free for FRED )
+            self.data_sources['economic_indicators'] = EconomicIndicatorsSource(econ_config)
+            
+            logger.info(f"Initialized {len(self.data_sources)} alternative data sources")
+            
+        except Exception as e:
+            logger.error(f"Data source initialization failed: {e}")
+    
+    async def fetch_alternative_data(self, 
+                                   symbols: List[str],
+                                   data_types: List[DataSourceType],
+                                   start_date: datetime,
+                                   end_date: datetime) -> Dict[DataSourceType, List[DataPoint]]:
+        """
+        Fetch alternative data from multiple sources
+        
+        Args:
+            symbols: List of symbols to fetch data for
+            data_types: Types of alternative data to fetch
+            start_date: Start date for data
+            end_date: End date for data
+            
+        Returns:
+            Dictionary mapping data type to list of data points
+        """
+        try:
+            logger.info(f"Fetching alternative data for {len(symbols)} symbols, "
+                       f"{len(data_types)} data types")
+            
+            # Check cache first
+            cache_key = self._generate_cache_key(symbols, data_types, start_date, end_date)
+            cached_data = await self.cache.get(cache_key)
+        if cached_data:
+                logger.debug("Returning cached alternative data")
+            return self._deserialize_cached_data(cached_data)
+            
+            # Fetch data from enabled sources
+            fetch_tasks = []
+            source_mapping = {}
+            
+            for source_id, source in self.data_sources.items():
+                if (source.config.enabled and 
+                    source.config.data_type in data_types):
+                    
+                    task = source.fetch_data(symbols, start_date, end_date)
+                    fetch_tasks.append(task)
+                    source_mapping[len(fetch_tasks) - 1] = source
+            
+                if not fetch_tasks:
+                logger.warning("No enabled data sources for requested data types")
+                return {}
+            
+            # Execute fetches with concurrency limit
+            semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
+            
+            async def fetch_with_semaphore(task):
+                async with semaphore:
+                return await task
+            
+            results = await asyncio.gather(
+                *[fetch_with_semaphore(task) for task in fetch_tasks],
+            return_exceptions=True )
+            
+            # Process results
+            alternative_data = {}
+            
+            for i, result in enumerate(results):
+                source = source_mapping[i]
+                
+                if isinstance(result, Exception):
+                    logger.error(f"Data fetch failed for {source.config.source_id}: {result}")
+                    continue
+                
+                    if result:
+                    # Validate data
+                    validated_data = await source.validate_data(result)
+                    
+                    if validated_data:
+                        data_type = source.config.data_type
+                        if data_type not in alternative_data:
+                            alternative_data[data_type] = []
+                        
+                        alternative_data[data_type].extend(validated_data)
+                        
+                        # Update source performance
+                        await self._update_source_performance(source.config.source_id, len(validated_data))
+            
+            # Cache results
+                        if alternative_data:
+                serialized_data = self._serialize_data_for_cache(alternative_data)
+                await self.cache.set(cache_key, serialized_data, ttl=self.CACHE_TTL)
+            
+            logger.info(f"Alternative data fetch completed: {len(alternative_data)} data types")
+            
+            return alternative_data
+            
+    except Exception as e:
+            logger.error(f"Alternative data fetch failed: {e}")
+            return {}
+    
+    def _generate_cache_key(self, 
+                           symbols: List[str],
+                           data_types: List[DataSourceType],
+                           start_date: datetime,
+                           end_date: datetime) -> str:
+        """Generate cache key for data request"""
+        symbols_str = "_".join(sorted(symbols))
+        types_str = "_".join([dt.value for dt in sorted(data_types, key=lambda x: x.value)])
+        dates_str = f"{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+        
+    return f"alt_data:{symbols_str}:{types_str}:{dates_str}"
+    
+    def _serialize_data_for_cache(self, data: Dict[DataSourceType, List[DataPoint]]) -> Dict:
+        """Serialize data for caching"""
+        serialized = {}
+        
+        for data_type, data_points in data.items():
+            serialized[data_type.value] = []
+            
+            for point in data_points:
+                serialized_point = {
+                    'source_id': point.source_id,
+                    'data_type': point.data_type.value,
+                    'symbol': point.symbol,
+                    'timestamp': point.timestamp.isoformat(),
+                    'value': point.value,
+                    'confidence': point.confidence,
+                    'metadata': point.metadata }
+                serialized[data_type.value].append(serialized_point)
+        
+        return serialized
+    
+                def _deserialize_cached_data(self, cached_data: Dict) -> Dict[DataSourceType, List[DataPoint]]:
+        """Deserialize cached data"""
+        pass
+        deserialized = {}
+        
+        for data_type_str, data_points in cached_data.items():
+            data_type = DataSourceType(data_type_str)
+            deserialized[data_type] = []
+            
+            for point_data in data_points:
+                data_point = DataPoint(
+                    source_id=point_data['source_id'],
+                    data_type=DataSourceType(point_data['data_type']),
+                    symbol=point_data['symbol'],
+                    timestamp=datetime.fromisoformat(point_data['timestamp']),
+                    value=point_data['value'],
+                    confidence=point_data['confidence'],
+                    metadata=point_data['metadata'] )
+                deserialized[data_type].append(data_point)
+        
+        return deserialized
+    
+                async def _update_source_performance(self, source_id: str, data_points_count: int):
+        """Update performance metrics for data source"""
+        try:
+            if source_id not in self.source_performance:
+                self.source_performance[source_id] = {
+                    'total_requests': 0,
+                    'total_data_points': 0,
+                    'last_update': datetime.now(timezone.utc),
+                    'error_count': 0,
+                    'avg_data_points_per_request': 0.0 }
+            
+            perf = self.source_performance[source_id]
+            perf['total_requests'] += 1
+            perf['total_data_points'] += data_points_count
+            perf['last_update'] = datetime.now(timezone.utc)
+            
+            if perf['total_requests'] > 0:
+                perf['avg_data_points_per_request'] = perf['total_data_points'] / perf['total_requests']
+            
+        except Exception as e:
+            logger.error(f"Performance update failed for {source_id}: {e}")
+    
+            async def get_data_quality_report(self) -> Dict:
+        """Generate data quality report for all sources"""
+        try:
+            report = {
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'source_count': len(self.data_sources),
+                'enabled_sources': 0,
+                'source_details': {},
+                'overall_quality_score': 0.0,
+                'recommendations': [] }
+            
+            quality_scores = []
+            
+            for source_id, source in self.data_sources.items():
+                if source.config.enabled:
+                    report['enabled_sources'] += 1
+                
+                # Calculate quality score
+                error_penalty = min(1.0, source.error_count / 10.0)  # Penalty for errors
+                quality_score = source.data_quality_score * (1.0 - error_penalty)
+                quality_scores.append(quality_score)
+                
+                # Performance data
+                perf = self.source_performance.get(source_id, {})
+                
+                source_detail = {
+                    'source_id': source_id,
+                    'data_type': source.config.data_type.value,
+                    'enabled': source.config.enabled,
+                    'quality_score': quality_score,
+                    'error_count': source.error_count,
+                    'last_update': source.last_update.isoformat() if source.last_update else None,
+                    'total_requests': perf.get('total_requests', 0),
+                    'total_data_points': perf.get('total_data_points', 0),
+                    'avg_data_points_per_request': perf.get('avg_data_points_per_request', 0.0) }
+                
+                report['source_details'][source_id] = source_detail
+                
+                # Generate recommendations
+                if quality_score < self.QUALITY_THRESHOLD:
+                    report['recommendations'].append(
+                        f"Consider disabling {source_id} due to low quality score ({quality_score:.2f})" )
+                
+                    if source.error_count > 5:
+                    report['recommendations'].append(
+                        f"Investigate high error count for {source_id} ({source.error_count} errors)" )
+            
+            # Overall quality score
+                    if quality_scores:
+                report['overall_quality_score'] = np.mean(quality_scores)
+            
+            return report
+            
+        except Exception as e:
+            logger.error(f"Quality report generation failed: {e}")
+            return {'error': str(e)}
+    
+            async def calculate_total_costs(self, period_days: int = 30) -> Dict:
+        """Calculate total costs for alternative data sources"""
+        try:
+            total_cost = Decimal('0.00')
+            source_costs = {}
+            
+            for source_id, source in self.data_sources.items():
+                perf = self.source_performance.get(source_id, {})
+                total_requests = perf.get('total_requests', 0)
+                
+                # Estimate requests for the period
+                if source.last_update:
+                    days_active = (datetime.now(timezone.utc) - source.last_update).days or 1
+                    requests_per_day = total_requests / days_active
+                    period_requests = int(requests_per_day * period_days)
+                    else:
+                    period_requests = 0
+                
+                source_cost = source.calculate_cost(period_requests)
+                source_costs[source_id] = {
+                    'cost_per_request': float(source.config.cost_per_request),
+                    'estimated_requests': period_requests,
+                    'total_cost': float(source_cost) }
+                
+                total_cost += source_cost
+            
+            return {
+                'period_days': period_days,
+                'total_cost': float(total_cost),
+                'source_costs': source_costs,
+                'currency': 'USD' }
+            
+        except Exception as e:
+            logger.error(f"Cost calculation failed: {e}")
+            return {'error': str(e)}
+    
+            def add_data_source(self, source: BaseDataSource):
+        """Add a new data source"""
+        try:
+            self.data_sources[source.config.source_id] = source
+            logger.info(f"Added data source: {source.config.source_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to add data source: {e}")
+    
+            def enable_data_source(self, source_id: str):
+        """Enable a data source"""
+        if source_id in self.data_sources:
+            self.data_sources[source_id].config.enabled = True
+            logger.info(f"Enabled data source: {source_id}")
+    
+            def disable_data_source(self, source_id: str):
+        """Disable a data source"""
+        if source_id in self.data_sources:
+            self.data_sources[source_id].config.enabled = False
+            logger.info(f"Disabled data source: {source_id}")
+    
+            async def get_available_data_types(self) -> List[str]:
+        """Get list of available data types"""
+        return [dt.value for dt in DataSourceType]
+    
+        async def test_data_source_connectivity(self, source_id: str) -> Dict:
+        """Test connectivity to a specific data source"""
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal
+from enum import Enum
+from src.cache.redis_cache import RedisCache
+from src.database.async_adapter import AsyncDatabaseAdapter
+from typing import Dict, List, Tuple, Optional, Any, Union
+import aiohttp
+import asyncio
+import json
+import logging
+import numpy as np
+import pandas as pd
+import warnings
+try:
+    if source_id not in self.data_sources:
+        # return {'status': 'error', 'message': 'Source not found'}
+            
+            source = self.data_sources[source_id]
+            
+            # Test with minimal data request
+            test_symbols = ['AAPL']
+            test_start = datetime.now(timezone.utc) - timedelta(hours=1)
+            test_end = datetime.now(timezone.utc)
+            
+            test_data = await source.fetch_data(test_symbols, test_start, test_end)
+            
+        if test_data:
+            # return {
+                    'status': 'success',
+                    'message': f'Successfully fetched {len(test_data)} data points',
+                    'data_points': len(test_data) }
+            else:
+                # return {
+                    'status': 'warning',
+                    'message': 'No data returned from source' }
+                
+except Exception as e:
+            logger.error(f"Connectivity test failed for {source_id}: {e}")
+            # return {
+                'status': 'error',
+                'message': f'Connectivity test failed: {str(e)}' }

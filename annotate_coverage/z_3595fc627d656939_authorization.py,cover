@@ -1,0 +1,460 @@
+> from typing import Any, Optional, Dict, List
+> import logging
+  
+> """
+> Authorization module for AgentTradr.
+  
+> This module provides role-based access control (RBAC) functionality
+> for controlling user permissions throughout the application.
+> """
+  
+> logger = logging.getLogger(__name__)
+  
+  # Define role hierarchy (higher index = more privileges)
+> ROLE_HIERARCHY = {
+>     "guest": 0,
+>     "subscriber": 1,
+>     "researcher": 2,
+>     "provider": 3,
+>     "admin": 4
+> }
+  
+> def is_admin(user: Any) -> bool:
+>     """
+>     Safely check if a user has admin role.
+  
+>     Args:
+>         user: User object with role attribute or dict with 'role' key
+          
+>     Returns:
+>         bool: True if user has admin role
+>     """
+      # First check if user has is_admin attribute (for backward compatibility)
+!     if hasattr(user, "is_admin"):
+!         return bool(getattr(user, "is_admin", False))
+  
+      # Check the role field
+!     role = getattr(user, "role", None)
+!     return role == "admin"
+  
+> def is_provider(user: Any) -> bool:
+>     """
+>     Check if user has provider role or higher.
+      
+>     Args:
+>         user: User object or dict
+          
+>     Returns:
+>         bool: True if user is provider or admin
+>     """
+!     role = get_user_role(user)
+!     return role in ["provider", "admin"]
+  
+> def is_subscriber(user: Any) -> bool:
+>     """
+>     Check if user has subscriber role or higher.
+      
+>     Args:
+>         user: User object or dict
+          
+>     Returns:
+>         bool: True if user is subscriber or above
+>     """
+!     role = get_user_role(user)
+!     return ROLE_HIERARCHY.get(role, -1) >= ROLE_HIERARCHY.get("subscriber", 0)
+  
+> def get_user_role(user: Any) -> str:
+>     """
+>     Extract user role from user object.
+      
+>     Args:
+>         user: User object, dict, or None
+          
+>     Returns:
+>         str: User role string, defaults to 'guest'
+>     """
+>     if user is None:
+>         return "guest"
+      
+>     if isinstance(user, dict):
+>         return user.get("role", "guest")
+      
+>     if hasattr(user, "role"):
+>         return user.role
+      
+>     if hasattr(user, "get"):
+>         return user.get("role", "guest")
+      
+>     return "guest"
+  
+> def get_user_id(user: Any) -> str:
+>     """
+>     Extract user ID from user object.
+      
+>     Args:
+>         user: User object, dict, or None
+          
+>     Returns:
+>         str: User ID string, defaults to 'anonymous'
+>     """
+!     if user is None:
+!         return "anonymous"
+      
+!     if isinstance(user, dict):
+!         return str(user.get("id", "anonymous"))
+      
+!     if hasattr(user, "id"):
+!         return str(user.id)
+      
+!     if hasattr(user, "user_id"):
+!         return str(user.user_id)
+      
+!     if hasattr(user, "get"):
+!         return str(user.get("id", "anonymous"))
+      
+!     return "anonymous"
+  
+> def has_role(user: Any, required_role: str) -> bool:
+>     """
+>     Check if user has a specific role.
+  
+>     Args:
+>         user: User object or dict
+>         required_role: Required role name
+          
+>     Returns:
+>         True if user has the specified role
+>     """
+!     user_role = getattr(user, "role", "guest")
+!     return user_role == required_role
+  
+> def has_min_role(user: Any, min_role: str) -> bool:
+>     """
+>     Check if user has at least the specified role level.
+  
+>     Uses role hierarchy where admin > provider > researcher > subscriber > guest.
+  
+>     Args:
+>         user: User object or dict
+>         min_role: Minimum required role
+          
+>     Returns:
+>         True if user's role is equal or higher than min_role
+>     """
+!     user_role = getattr(user, "role", "guest")
+  
+      # Get hierarchy levels
+!     user_level = ROLE_HIERARCHY.get(user_role, 0)
+!     min_level = ROLE_HIERARCHY.get(min_role, 0)
+  
+!     return user_level >= min_level
+  
+> def is_owner_or_admin(user: Any, resource_owner_id: Any) -> bool:
+>     """
+>     Check if user is either the owner of a resource or an admin.
+  
+>     Args:
+>         user: User object
+>         resource_owner_id: ID of the resource owner
+          
+>     Returns:
+>         True if user is the owner or an admin
+>     """
+      # Safely get user ID
+!     user_id = getattr(user, "id", None)
+  
+      # Check if user is the owner
+!     if user_id and str(user_id) == str(resource_owner_id):
+!         return True
+  
+      # Check if user is admin
+!     return is_admin(user)
+  
+> def can_manage_user(current_user: Any, target_user_id: Any) -> bool:
+>     """
+>     Check if current user can manage another user.
+  
+>     Args:
+>         current_user: Current user object
+>         target_user_id: Target user ID
+          
+>     Returns:
+>         True if current user can manage the target user
+>     """
+      # Users can manage themselves
+!     if str(getattr(current_user, "id", None)) == str(target_user_id):
+!         return True
+      
+      # Admins can manage anyone
+!     return is_admin(current_user)
+  
+> def has_permission(user: Any, required_role: str) -> bool:
+>     """
+>     Check if user has required role permission.
+      
+>     Args:
+>         user: User object or dict
+>         required_role: Minimum required role
+          
+>     Returns:
+>         bool: True if user has required role or higher
+>     """
+!     user_role = get_user_role(user)
+!     user_level = ROLE_HIERARCHY.get(user_role, -1)
+!     required_level = ROLE_HIERARCHY.get(required_role, 999)
+      
+!     return user_level >= required_level
+  
+> def can_access_admin_features(user: Any) -> bool:
+>     """
+>     Check if user can access admin-only features.
+  
+>     Args:
+>         user: User object or dict
+          
+>     Returns:
+>         True if user has admin privileges
+>     """
+!     return is_admin(user)
+  
+> def can_publish_content(user: Any) -> bool:
+>     """
+>     Check if user can publish content (strategies, signals, etc).
+  
+>     Args:
+>         user: User object
+          
+>     Returns:
+>         True if user can publish content
+>     """
+!     return has_min_role(user, "provider")
+  
+> def can_research(user: Any) -> bool:
+>     """
+>     Check if user can access research features.
+  
+>     Args:
+>         user: User object
+          
+>     Returns:
+>         True if user can access research features
+>     """
+!     return has_min_role(user, "researcher")
+  
+> def can_access_resource(user: Any, resource: str, action: str = "read") -> bool:
+>     """
+>     Check if user can access a specific resource.
+      
+>     Args:
+>         user: User object or dict
+>         resource: Resource name (e.g., 'strategies', 'admin_panel')
+>         action: Action type ('read', 'write', 'delete', 'admin')
+          
+>     Returns:
+>         bool: True if access is allowed
+>     """
+!     user_role = get_user_role(user)
+      
+      # Define resource permissions
+!     resource_permissions = {
+!         "strategies": {
+!             "read": ["subscriber", "researcher", "provider", "admin"],
+!             "write": ["provider", "admin"],
+!             "delete": ["provider", "admin"],
+!             "admin": ["admin"]
+!         },
+!         "admin_panel": {
+!             "read": ["admin"],
+!             "write": ["admin"],
+!             "delete": ["admin"],
+!             "admin": ["admin"]
+!         },
+!         "analytics": {
+!             "read": ["subscriber", "researcher", "provider", "admin"],
+!             "write": ["researcher", "provider", "admin"],
+!             "delete": ["admin"],
+!             "admin": ["admin"]
+!         },
+!         "signals": {
+!             "read": ["subscriber", "researcher", "provider", "admin"],
+!             "write": ["provider", "admin"],
+!             "delete": ["provider", "admin"],
+!             "admin": ["admin"]
+!         },
+!         "marketplace": {
+!             "read": ["guest", "subscriber", "researcher", "provider", "admin"],
+!             "write": ["provider", "admin"],
+!             "delete": ["admin"],
+!             "admin": ["admin"]
+!         }
+!     }
+      
+!     if resource not in resource_permissions:
+          # Default to admin-only for unknown resources
+!         return user_role == "admin"
+      
+!     allowed_roles = resource_permissions[resource].get(action, ["admin"])
+!     return user_role in allowed_roles
+  
+> def require_role(required_role: str):
+>     """
+>     Decorator to require specific role for function access.
+      
+>     Args:
+>         required_role: Minimum required role
+          
+>     Returns:
+>         Decorator function
+>     """
+!     def decorator(func):
+!         def wrapper(*args, **kwargs):
+              # Try to extract user from common argument patterns
+!             user = None
+!             if args:
+                  # Check if first argument is user
+!                 if hasattr(args[0], 'role') or isinstance(args[0], dict):
+!                     user = args[0]
+              
+!             if "user" in kwargs:
+!                 user = kwargs["user"]
+!             elif "current_user" in kwargs:
+!                 user = kwargs["current_user"]
+              
+!             if not has_permission(user, required_role):
+!                 user_role = get_user_role(user)
+!                 raise PermissionError(
+!                     f"Access denied. Required role: {required_role}, current role: {user_role}"
+!                 )
+              
+!             return func(*args, **kwargs)
+!         return wrapper
+!     return decorator
+  
+> def admin_required(func):
+>     """
+>     Decorator that requires admin role.
+      
+>     Args:
+>         func: Function to wrap
+          
+>     Returns:
+>         Wrapped function
+>     """
+!     return require_role("admin")(func)
+  
+> def provider_required(func):
+>     """
+>     Decorator that requires provider role or higher.
+      
+>     Args:
+>         func: Function to wrap
+          
+>     Returns:
+>         Wrapped function
+>     """
+!     return require_role("provider")(func)
+  
+> def subscriber_required(func):
+>     """
+>     Decorator that requires subscriber role or higher.
+      
+>     Args:
+>         func: Function to wrap
+          
+>     Returns:
+>         Wrapped function
+>     """
+!     return require_role("subscriber")(func)
+  
+> def get_user_permissions(user: Any) -> Dict[str, List[str]]:
+>     """
+>     Get all permissions for a user.
+      
+>     Args:
+>         user: User object or dict
+          
+>     Returns:
+>         dict: Mapping of resources to allowed actions and user metadata
+>     """
+!     user_role = get_user_role(user)
+      
+      # Get permissions for each resource
+!     permissions = {}
+!     resources = ["strategies", "admin_panel", "analytics", "signals", "marketplace"]
+!     actions = ["read", "write", "delete", "admin"]
+      
+!     for resource in resources:
+!         permissions[resource] = []
+!         for action in actions:
+!             if can_access_resource(user, resource, action):
+!                 permissions[resource].append(action)
+      
+      # Add user metadata and capabilities
+!     return {
+!         "resources": permissions,
+!         "role": user_role,
+!         "is_admin": is_admin(user),
+!         "can_publish": can_publish_content(user),
+!         "can_research": can_research(user),
+!         "can_manage_users": is_admin(user),
+!         "can_access_admin_panel": is_admin(user),
+!         "can_view_system_health": is_admin(user),
+!         "can_manage_api_keys": True,  # All authenticated users can manage their own keys
+!         "can_create_support_tickets": user_role != "guest",
+!         "can_subscribe": user_role in ["subscriber", "researcher", "provider", "admin"]
+!     }
+  
+> def validate_role_change(
+>     current_user: Any, target_user: Any, new_role: str) -> tuple[bool, str]:
+>     """
+>     Validate if a role change is allowed.
+  
+>     Args:
+>         current_user: User making the change
+>         target_user: User being changed
+>         new_role: New role to assign
+          
+>     Returns:
+>         Tuple of (allowed, reason)
+>     """
+      # Only admins can change roles
+!     if not is_admin(current_user):
+!         return False, "Only administrators can change user roles"
+      
+      # Validate new role
+!     if new_role not in ROLE_HIERARCHY:
+!         return False, f"Invalid role: {new_role}"
+  
+      # Don't allow users to remove their own admin role
+!     current_user_id = getattr(current_user, "id", None)
+!     target_user_id = getattr(target_user, "id", None)
+!     if current_user_id == target_user_id and new_role != "admin":
+!         return False, "Cannot remove your own admin privileges"
+  
+!     return True, ""
+  
+  # Utility function for logging authorization attempts
+> def log_authorization_attempt(
+>     user: Any, action: str, resource: str, allowed: bool, reason: Optional[str] = None
+> ) -> None:
+>     """
+>     Log authorization attempts for security auditing.
+      
+>     Args:
+>         user: User object or dict
+>         action: Action attempted
+>         resource: Resource accessed
+>         allowed: Whether access was granted
+>         reason: Optional reason for denial
+>     """
+!     user_id = get_user_id(user)
+!     user_role = get_user_role(user)
+      
+!     log_msg = f"Auth: User {user_id} (role={user_role}) {action} on {resource}: {'ALLOWED' if allowed else 'DENIED'}"
+!     if reason:
+!         log_msg += f" - {reason}"
+      
+!     if allowed:
+!         logger.info(log_msg)
+!     else:
+!         logger.warning(log_msg)

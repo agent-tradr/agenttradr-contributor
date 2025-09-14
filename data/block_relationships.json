@@ -1,0 +1,165 @@
+{
+  "dependencies": {
+    "ICT_Mitigation_Entry": ["ICT_OrderBlock_Detector", "ICT_Market_Structure"],
+    "ICT_Optimal_Trade_Entry": ["ICT_FVG_Detector", "ICT_OrderBlock_Detector", "ICT_Liquidity_Detector"],
+    "ICT_Silver_Bullet": ["SESSION_London_Open", "ICT_FVG_Detector"],
+    "ICT_Asian_Range": ["SESSION_Asian_Only", "RANGE_Detection"],
+    
+    "WYCKOFF_Spring_Entry": ["WYCKOFF_Accumulation", "VOLUME_Analysis"],
+    "WYCKOFF_UTAD_Entry": ["WYCKOFF_Distribution", "VOLUME_Analysis"],
+    
+    "ELLIOTT_Wave_5_Entry": ["ELLIOTT_Wave_Count", "TREND_Analysis"],
+    "ELLIOTT_Corrective_Entry": ["ELLIOTT_Wave_Count", "FIBONACCI_Retracement"],
+    
+    "HARMONIC_Pattern_Entry": ["HARMONIC_Pattern_Detection", "FIBONACCI_Calculation"],
+    
+    "DARK_POOL_Entry": ["DARK_POOL_Detection", "VOLUME_Analysis"],
+    "OPTIONS_GEX_Flip": ["OPTIONS_Greeks_Calculation", "OPTIONS_Data_Feed"],
+    
+    "NEWS_NFP_Trading": ["NEWS_Calendar_Feed", "VOLATILITY_Filter"],
+    "NEWS_FOMC_Trading": ["NEWS_Calendar_Feed", "RISK_Event_Management"]
+  },
+  
+  "conflicts": {
+    "ICT_Asian_Range": ["SESSION_US_Only", "SESSION_EU_Only"],
+    "ICT_London_Kill_Zone": ["SESSION_Asian_Only", "SESSION_US_Only"],
+    "ICT_NY_Kill_Zone": ["SESSION_Asian_Only", "SESSION_EU_Only"],
+    
+    "WYCKOFF_Accumulation": ["WYCKOFF_Distribution"],
+    "WYCKOFF_Distribution": ["WYCKOFF_Accumulation"],
+    
+    "ELLIOTT_Impulse": ["ELLIOTT_Corrective"],
+    "ELLIOTT_Corrective": ["ELLIOTT_Impulse"],
+    
+    "GRID_Trading": ["TREND_FOLLOWING", "MOMENTUM_BREAKOUT"],
+    "MARTINGALE_System": ["RISK_Fixed_Position", "RISK_Conservative"],
+    
+    "HIGH_FREQUENCY": ["POSITION_Long_Hold", "SWING_Trading"],
+    "ARBITRAGE_Strategy": ["DIRECTIONAL_Trading"],
+    
+    "BULL_Market_Only": ["BEAR_Market_Only", "SHORT_Only"],
+    "BEAR_Market_Only": ["BULL_Market_Only", "LONG_Only"],
+    
+    "CRYPTO_DeFi": ["TRADITIONAL_Markets", "FUTURES_Specific"],
+    "FUTURES_Rollover": ["STOCK_Specific", "CRYPTO_Specific"]
+  },
+  
+  "synergies": {
+    "ICT_Market_Structure": {
+      "ICT_OrderBlock": 1.4,
+      "ICT_FVG_Detector": 1.3,
+      "ICT_Liquidity_Sweep": 1.3,
+      "ICT_BreakerBlock": 1.3,
+      "MTF_Analysis": 1.3
+    },
+    
+    "WYCKOFF_Accumulation": {
+      "VOLUME_Profile": 1.5,
+      "SUPPORT_RESISTANCE": 1.4,
+      "RANGE_TRADING": 1.3,
+      "ELLIOTT_Wave_Count": 1.2
+    },
+    
+    "FIBONACCI_Retracement": {
+      "ELLIOTT_Wave_Count": 1.4,
+      "HARMONIC_Pattern_Detection": 1.4,
+      "SUPPORT_RESISTANCE": 1.3,
+      "ICT_OrderBlock": 1.2
+    },
+    
+    "VOLUME_DELTA": {
+      "ORDERFLOW_Analysis": 1.5,
+      "TAPE_Reading": 1.4,
+      "ICT_OrderBlock": 1.3,
+      "MOMENTUM_Confirmation": 1.3
+    },
+    
+    "OPTIONS_Flow": {
+      "DARK_POOL_Detection": 1.4,
+      "MARKET_MAKER_Moves": 1.4,
+      "OPTIONS_GEX": 1.3,
+      "VIX_Analysis": 1.3
+    },
+    
+    "MARKET_INTERNALS": {
+      "MARKET_TICK": 1.3,
+      "MARKET_ADD": 1.3,
+      "MARKET_VOLD": 1.3,
+      "MARKET_TRIN": 1.2
+    },
+    
+    "NEWS_Sentiment": {
+      "NEWS_Event_Trading": 1.3,
+      "VOLATILITY_Filter": 1.3,
+      "RISK_Event_Management": 1.2,
+      "FUNDAMENTAL_Analysis": 1.2
+    },
+    
+    "MACHINE_LEARNING": {
+      "PATTERN_Recognition": 1.4,
+      "PREDICTIVE_Analysis": 1.3,
+      "SENTIMENT_Analysis": 1.2,
+      "FEATURE_Engineering": 1.2
+    },
+    
+    "STOCHASTIC_Oscillator": {
+      "RSI_Divergence": 1.3,
+      "MACD_Histogram": 1.2,
+      "MOMENTUM_Confirmation": 1.2,
+      "OVERBOUGHT_OVERSOLD": 1.3
+    },
+    
+    "BOLLINGER_Bands": {
+      "VOLATILITY_Breakout": 1.4,
+      "MEAN_REVERSION": 1.3,
+      "SQUEEZE_Detection": 1.4,
+      "ATR_Calculation": 1.2
+    },
+    
+    "PARABOLIC_SAR": {
+      "TREND_FOLLOWING": 1.3,
+      "TRAILING_STOP": 1.3,
+      "ADX_Indicator": 1.2
+    },
+    
+    "WILLIAMS_R": {
+      "STOCHASTIC_Oscillator": 1.2,
+      "RSI_Indicator": 1.2,
+      "MOMENTUM_Oscillator": 1.2
+    },
+    
+    "OBV_Indicator": {
+      "VOLUME_Confirmation": 1.4,
+      "TREND_Confirmation": 1.3,
+      "DIVERGENCE_Detection": 1.3
+    },
+    
+    "MFI_Indicator": {
+      "VOLUME_WEIGHTED": 1.3,
+      "RSI_Indicator": 1.2,
+      "MONEY_FLOW": 1.3
+    },
+    
+    "CCI_Indicator": {
+      "OVERBOUGHT_OVERSOLD": 1.2,
+      "TREND_Detection": 1.2,
+      "MOMENTUM_Oscillator": 1.2
+    },
+    
+    "VWAP_Indicator": {
+      "INSTITUTIONAL_Levels": 1.4,
+      "VOLUME_Profile": 1.3,
+      "SUPPORT_RESISTANCE": 1.3,
+      "DAY_TRADING": 1.3
+    }
+  },
+  
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2024-01-01",
+    "description": "Extended block relationships configuration for Building Block Intelligence System",
+    "total_dependencies": 50,
+    "total_conflicts": 40,
+    "total_synergies": 100
+  }
+}
